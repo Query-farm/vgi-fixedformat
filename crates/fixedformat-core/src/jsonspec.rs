@@ -42,8 +42,8 @@ struct JsonField {
 
 /// Parse a JSON spec into a [`Layout`].
 pub fn parse(src: &str) -> Result<Layout> {
-    let spec: Spec = serde_json::from_str(src)
-        .map_err(|e| Error(format!("invalid JSON spec: {e}")))?;
+    let spec: Spec =
+        serde_json::from_str(src).map_err(|e| Error(format!("invalid JSON spec: {e}")))?;
     let raw = match spec {
         Spec::Array(v) => v,
         Spec::Wrapped { fields } => fields,
@@ -95,7 +95,8 @@ fn field_kind(jf: &JsonField) -> Result<(FieldKind, usize)> {
         }
         "int" | "integer" | "display" | "num" | "numeric" => {
             let digits = req_digits(jf)?;
-            let sep = matches!(sign, SignKind::LeadingSeparate | SignKind::TrailingSeparate) as usize;
+            let sep =
+                matches!(sign, SignKind::LeadingSeparate | SignKind::TrailingSeparate) as usize;
             Ok((FieldKind::Int { signed, sign }, digits as usize + sep))
         }
         "binary" | "comp" | "comp4" | "comp5" => {
@@ -128,7 +129,8 @@ fn field_kind(jf: &JsonField) -> Result<(FieldKind, usize)> {
         }
         "decimal" | "dec" => {
             let digits = req_digits(jf)?;
-            let sep = matches!(sign, SignKind::LeadingSeparate | SignKind::TrailingSeparate) as usize;
+            let sep =
+                matches!(sign, SignKind::LeadingSeparate | SignKind::TrailingSeparate) as usize;
             Ok((
                 FieldKind::Decimal {
                     precision: digits,
@@ -147,7 +149,12 @@ fn field_kind(jf: &JsonField) -> Result<(FieldKind, usize)> {
             Ok((FieldKind::Hex { order: endian }, width))
         }
         "bool" | "boolean" => Ok((FieldKind::Bool, 1)),
-        "pad" | "filler" => Ok((FieldKind::Pad { pad: parse_pad(jf.pad.as_deref(), b' ')? }, req_width(jf)?)),
+        "pad" | "filler" => Ok((
+            FieldKind::Pad {
+                pad: parse_pad(jf.pad.as_deref(), b' ')?,
+            },
+            req_width(jf)?,
+        )),
         other => Err(Error(format!("unknown field type {other:?}"))),
     }
 }
@@ -187,7 +194,11 @@ fn parse_pad(s: Option<&str>, default: u8) -> Result<u8> {
 
 fn parse_sign(s: Option<&str>, signed: bool) -> Result<SignKind> {
     match s {
-        None => Ok(if signed { SignKind::Embedded } else { SignKind::Unsigned }),
+        None => Ok(if signed {
+            SignKind::Embedded
+        } else {
+            SignKind::Unsigned
+        }),
         Some("leading") | Some("leading_separate") => Ok(SignKind::LeadingSeparate),
         Some("trailing") | Some("trailing_separate") => Ok(SignKind::TrailingSeparate),
         Some("embedded") | Some("overpunch") => Ok(SignKind::Embedded),
@@ -228,7 +239,8 @@ mod tests {
 
     #[test]
     fn decode_with_json_spec() {
-        let spec = r#"[{"name":"name","type":"str","width":10},{"name":"qty","type":"int","digits":5}]"#;
+        let spec =
+            r#"[{"name":"name","type":"str","width":10},{"name":"qty","type":"int","digits":5}]"#;
         let layout = parse(spec).unwrap();
         let out = decode_record(&layout, b"JOHN      00042", Encoding::Ascii).unwrap();
         assert_eq!(out[0].1, Value::Text("JOHN".into()));

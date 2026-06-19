@@ -237,7 +237,10 @@ fn layout_nodes(nodes: &[Raw]) -> Result<(Vec<Field>, usize)> {
 
         let offset = match &node.redefines {
             Some(target) => *name_off.get(&target.to_ascii_uppercase()).ok_or_else(|| {
-                Error(format!("REDEFINES target {target:?} not found before {:?}", node.name))
+                Error(format!(
+                    "REDEFINES target {target:?} not found before {:?}",
+                    node.name
+                ))
             })?,
             None => cursor,
         };
@@ -283,7 +286,9 @@ fn fold_redefines(fields: Vec<Field>) -> Vec<Field> {
                     let group_offset = base.offset;
                     // Start (or extend) a group at `idx`.
                     let mut members: Vec<Field> = match &out[idx].kind {
-                        FieldKind::Group(ch) if out[idx].name == base.name && is_synthetic_union(&out[idx]) => {
+                        FieldKind::Group(ch)
+                            if out[idx].name == base.name && is_synthetic_union(&out[idx]) =>
+                        {
                             ch.clone()
                         }
                         _ => vec![rebase(base.clone(), group_offset)],
@@ -367,7 +372,13 @@ pub fn parse_pic(pic: &str, usage: Usage, sign: Option<SignKind>) -> Result<(Fie
         )),
         Usage::Comp => {
             let width = comp_width(digits);
-            Ok((FieldKind::Binary { endian: Endian::Big, signed }, width))
+            Ok((
+                FieldKind::Binary {
+                    endian: Endian::Big,
+                    signed,
+                },
+                width,
+            ))
         }
         Usage::Display => {
             if scale == 0 {
@@ -384,7 +395,10 @@ pub fn parse_pic(pic: &str, usage: Usage, sign: Option<SignKind>) -> Result<(Fie
                     ))
                 } else {
                     Ok((
-                        FieldKind::Int { signed, sign: sign_kind },
+                        FieldKind::Int {
+                            signed,
+                            sign: sign_kind,
+                        },
                         digits + sep_bytes,
                     ))
                 }
@@ -480,7 +494,10 @@ impl PicShape {
                 }
                 'S' => signed = true,
                 'V' => after_v = true,
-                'P' => { /* implied scaling position; treat as fractional pad */ frac_digits += count; }
+                'P' => {
+                    /* implied scaling position; treat as fractional pad */
+                    frac_digits += count;
+                }
                 'Z' | '*' | '0' | ',' | '/' | 'B' => {
                     // Edited numeric symbols: approximate as display digit positions.
                     if after_v {
@@ -497,7 +514,9 @@ impl PicShape {
         }
 
         if text && (int_digits + frac_digits) > 0 {
-            return Err(Error(format!("mixed text/numeric PIC not supported: {pic:?}")));
+            return Err(Error(format!(
+                "mixed text/numeric PIC not supported: {pic:?}"
+            )));
         }
         Ok(PicShape {
             text,
@@ -532,7 +551,12 @@ mod tests {
         let (k, w) = parse_pic("S9(7)V99", Usage::Comp3, None).unwrap();
         assert_eq!(w, 5); // 9 digits -> 5 bytes
         match k {
-            FieldKind::Decimal { precision, scale, repr, .. } => {
+            FieldKind::Decimal {
+                precision,
+                scale,
+                repr,
+                ..
+            } => {
                 assert_eq!(precision, 9);
                 assert_eq!(scale, 2);
                 assert_eq!(repr, NumRepr::Comp3);

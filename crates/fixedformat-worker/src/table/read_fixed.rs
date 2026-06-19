@@ -47,7 +47,8 @@ impl TableFunction for ReadFixed {
 
     fn metadata(&self) -> FunctionMetadata {
         FunctionMetadata {
-            description: "Read a fixed-width file (template / JSON / copybook spec) into rows".into(),
+            description: "Read a fixed-width file (template / JSON / copybook spec) into rows"
+                .into(),
             ..Default::default()
         }
     }
@@ -59,7 +60,12 @@ impl TableFunction for ReadFixed {
             ArgSpec::const_arg("format", -1, "varchar", "Spec format override"),
             ArgSpec::const_arg("encoding", -1, "varchar", "ascii (default) or ebcdic"),
             ArgSpec::const_arg("framing", -1, "varchar", "newline (default) / fixed / rdw"),
-            ArgSpec::const_arg("record_length", -1, "int64", "Override record length (fixed framing)"),
+            ArgSpec::const_arg(
+                "record_length",
+                -1,
+                "int64",
+                "Override record length (fixed framing)",
+            ),
         ]
     }
 

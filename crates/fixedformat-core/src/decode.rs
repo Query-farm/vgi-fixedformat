@@ -12,11 +12,7 @@ use crate::{packed, zoned, Encoding, Error, Result};
 
 /// Decode all top-level fields of a record into `(name, value)` pairs. Pad
 /// fields are consumed but omitted from the output.
-pub fn decode_record(
-    layout: &Layout,
-    bytes: &[u8],
-    enc: Encoding,
-) -> Result<Vec<(String, Value)>> {
+pub fn decode_record(layout: &Layout, bytes: &[u8], enc: Encoding) -> Result<Vec<(String, Value)>> {
     layout.check_record_len(bytes.len())?;
     let mut out = Vec::with_capacity(layout.fields.len());
     for field in &layout.fields {
@@ -98,9 +94,11 @@ fn decode_one(field: &Field, at: usize, bytes: &[u8], enc: Encoding) -> Result<V
 }
 
 fn slice(bytes: &[u8], at: usize, width: usize) -> Result<&[u8]> {
-    bytes
-        .get(at..at + width)
-        .ok_or_else(|| Error(format!("field at offset {at} (+{width}) overruns the record")))
+    bytes.get(at..at + width).ok_or_else(|| {
+        Error(format!(
+            "field at offset {at} (+{width}) overruns the record"
+        ))
+    })
 }
 
 /// Normalize a field's bytes to ASCII (transcoding from EBCDIC when needed).

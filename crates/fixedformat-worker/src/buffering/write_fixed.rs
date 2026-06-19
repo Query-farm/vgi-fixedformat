@@ -97,7 +97,9 @@ impl TableBufferingFunction for WriteFixed {
         let mut records: Vec<Vec<u8>> = Vec::new();
         let mut after_id = 0i64;
         loop {
-            let rows = params.storage.scan(&finalize_state_id, NS, b"", after_id, 256);
+            let rows = params
+                .storage
+                .scan(&finalize_state_id, NS, b"", after_id, 256);
             if rows.is_empty() {
                 break;
             }

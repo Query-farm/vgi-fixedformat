@@ -36,8 +36,8 @@ impl ScalarFunction for Unpack {
 
     fn metadata(&self) -> FunctionMetadata {
         FunctionMetadata {
-            description: "Parse a fixed-width record (template / JSON / copybook spec) into a STRUCT"
-                .into(),
+            description:
+                "Parse a fixed-width record (template / JSON / copybook spec) into a STRUCT".into(),
             ..Default::default()
         }
     }
@@ -48,7 +48,12 @@ impl ScalarFunction for Unpack {
             ArgSpec::const_arg("spec", 1, "varchar", "Layout spec (template/JSON/copybook)"),
         ];
         if self.with_encoding {
-            specs.push(ArgSpec::const_arg("encoding", 2, "varchar", "ascii (default) or ebcdic"));
+            specs.push(ArgSpec::const_arg(
+                "encoding",
+                2,
+                "varchar",
+                "ascii (default) or ebcdic",
+            ));
         }
         specs
     }
@@ -90,6 +95,8 @@ fn record_bytes(rec: &ArrayRef, i: usize) -> Result<&[u8]> {
         DataType::LargeUtf8 => Ok(rec.as_string::<i64>().value(i).as_bytes()),
         DataType::Binary => Ok(rec.as_binary::<i32>().value(i)),
         DataType::LargeBinary => Ok(rec.as_binary::<i64>().value(i)),
-        other => Err(ve(format!("unpack: rec must be VARCHAR or BLOB, got {other:?}"))),
+        other => Err(ve(format!(
+            "unpack: rec must be VARCHAR or BLOB, got {other:?}"
+        ))),
     }
 }

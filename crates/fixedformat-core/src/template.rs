@@ -121,27 +121,143 @@ fn parse_body(body: &str, order: Endian) -> Result<(FieldKind, usize, Option<usi
     };
 
     Ok(match code {
-        'A' => width_kind(count.unwrap_or(1), FieldKind::Text { justify: Justify::Left, trim: true, pad: b' ' }),
-        'a' => width_kind(count.unwrap_or(1), FieldKind::Text { justify: Justify::Left, trim: true, pad: 0 }),
-        'Z' => width_kind(count.unwrap_or(1), FieldKind::Text { justify: Justify::Left, trim: true, pad: 0 }),
+        'A' => width_kind(
+            count.unwrap_or(1),
+            FieldKind::Text {
+                justify: Justify::Left,
+                trim: true,
+                pad: b' ',
+            },
+        ),
+        'a' => width_kind(
+            count.unwrap_or(1),
+            FieldKind::Text {
+                justify: Justify::Left,
+                trim: true,
+                pad: 0,
+            },
+        ),
+        'Z' => width_kind(
+            count.unwrap_or(1),
+            FieldKind::Text {
+                justify: Justify::Left,
+                trim: true,
+                pad: 0,
+            },
+        ),
         'H' => width_kind(count.unwrap_or(1), FieldKind::Hex { order: Endian::Big }),
-        'h' => width_kind(count.unwrap_or(1), FieldKind::Hex { order: Endian::Little }),
+        'h' => width_kind(
+            count.unwrap_or(1),
+            FieldKind::Hex {
+                order: Endian::Little,
+            },
+        ),
         'x' => width_kind(count.unwrap_or(1), FieldKind::Pad { pad: 0 }),
-        'c' => counted(1, FieldKind::Binary { endian: local_order, signed: true }),
-        'C' => counted(1, FieldKind::Binary { endian: local_order, signed: false }),
-        's' => counted(2, FieldKind::Binary { endian: local_order, signed: true }),
-        'S' => counted(2, FieldKind::Binary { endian: local_order, signed: false }),
-        'l' | 'i' => counted(4, FieldKind::Binary { endian: local_order, signed: true }),
-        'L' | 'I' => counted(4, FieldKind::Binary { endian: local_order, signed: false }),
-        'q' => counted(8, FieldKind::Binary { endian: local_order, signed: true }),
-        'Q' => counted(8, FieldKind::Binary { endian: local_order, signed: false }),
-        'n' => counted(2, FieldKind::Binary { endian: Endian::Big, signed: false }),
-        'N' => counted(4, FieldKind::Binary { endian: Endian::Big, signed: false }),
-        'v' => counted(2, FieldKind::Binary { endian: Endian::Little, signed: false }),
-        'V' => counted(4, FieldKind::Binary { endian: Endian::Little, signed: false }),
-        'e' => counted(2, FieldKind::Float { bits: 16, endian: local_order }),
-        'f' => counted(4, FieldKind::Float { bits: 32, endian: local_order }),
-        'd' => counted(8, FieldKind::Float { bits: 64, endian: local_order }),
+        'c' => counted(
+            1,
+            FieldKind::Binary {
+                endian: local_order,
+                signed: true,
+            },
+        ),
+        'C' => counted(
+            1,
+            FieldKind::Binary {
+                endian: local_order,
+                signed: false,
+            },
+        ),
+        's' => counted(
+            2,
+            FieldKind::Binary {
+                endian: local_order,
+                signed: true,
+            },
+        ),
+        'S' => counted(
+            2,
+            FieldKind::Binary {
+                endian: local_order,
+                signed: false,
+            },
+        ),
+        'l' | 'i' => counted(
+            4,
+            FieldKind::Binary {
+                endian: local_order,
+                signed: true,
+            },
+        ),
+        'L' | 'I' => counted(
+            4,
+            FieldKind::Binary {
+                endian: local_order,
+                signed: false,
+            },
+        ),
+        'q' => counted(
+            8,
+            FieldKind::Binary {
+                endian: local_order,
+                signed: true,
+            },
+        ),
+        'Q' => counted(
+            8,
+            FieldKind::Binary {
+                endian: local_order,
+                signed: false,
+            },
+        ),
+        'n' => counted(
+            2,
+            FieldKind::Binary {
+                endian: Endian::Big,
+                signed: false,
+            },
+        ),
+        'N' => counted(
+            4,
+            FieldKind::Binary {
+                endian: Endian::Big,
+                signed: false,
+            },
+        ),
+        'v' => counted(
+            2,
+            FieldKind::Binary {
+                endian: Endian::Little,
+                signed: false,
+            },
+        ),
+        'V' => counted(
+            4,
+            FieldKind::Binary {
+                endian: Endian::Little,
+                signed: false,
+            },
+        ),
+        'e' => counted(
+            2,
+            FieldKind::Float {
+                bits: 16,
+                endian: local_order,
+            },
+        ),
+        'f' => counted(
+            4,
+            FieldKind::Float {
+                bits: 32,
+                endian: local_order,
+            },
+        ),
+        'd' => counted(
+            8,
+            FieldKind::Float {
+                bits: 64,
+                endian: local_order,
+            },
+        ),
         '?' => counted(1, FieldKind::Bool),
         other => return Err(Error(format!("unknown template code {other:?}"))),
     })

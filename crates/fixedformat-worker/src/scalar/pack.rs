@@ -47,7 +47,12 @@ impl ScalarFunction for Pack {
             ArgSpec::const_arg("spec", 1, "varchar", "Layout spec (template/JSON/copybook)"),
         ];
         if self.with_encoding {
-            specs.push(ArgSpec::const_arg("encoding", 2, "varchar", "ascii (default) or ebcdic"));
+            specs.push(ArgSpec::const_arg(
+                "encoding",
+                2,
+                "varchar",
+                "ascii (default) or ebcdic",
+            ));
         }
         specs
     }
@@ -74,7 +79,11 @@ impl ScalarFunction for Pack {
                     b.append_null();
                     continue;
                 }
-                other => return Err(ve(format!("pack: argument must be a STRUCT, got {other:?}"))),
+                other => {
+                    return Err(ve(format!(
+                        "pack: argument must be a STRUCT, got {other:?}"
+                    )))
+                }
             };
             let bytes = encode_record(&layout, &pairs, enc).map_err(ve)?;
             b.append_value(bytes);

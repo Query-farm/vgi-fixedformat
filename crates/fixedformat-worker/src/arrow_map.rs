@@ -52,7 +52,9 @@ fn base_type(f: &Field) -> Result<DataType> {
         FieldKind::Float { .. } => DataType::Float32,
         FieldKind::Bool => DataType::Boolean,
         FieldKind::Pad { .. } => DataType::Null,
-        FieldKind::Decimal { precision, scale, .. } => {
+        FieldKind::Decimal {
+            precision, scale, ..
+        } => {
             let p = (*precision).clamp(1, MAX_DECIMAL_PRECISION);
             DataType::Decimal128(p, *scale as i8)
         }
@@ -142,10 +144,7 @@ pub fn build_array(dt: &DataType, col: &[Value]) -> Result<ArrayRef> {
                     other => return Err(rt(format!("expected decimal, got {other:?}"))),
                 }
             }
-            let arr = b
-                .finish()
-                .with_precision_and_scale(*p, *s)
-                .map_err(rt)?;
+            let arr = b.finish().with_precision_and_scale(*p, *s).map_err(rt)?;
             Ok(Arc::new(arr))
         }
         DataType::List(item) => build_list(item, col),
@@ -215,7 +214,11 @@ fn build_struct(fields: &Fields, col: &[Value]) -> Result<StructArray> {
         .zip(&child_cols)
         .map(|(f, c)| build_array(f.data_type(), c))
         .collect::<Result<_>>()?;
-    Ok(StructArray::new(fields.clone(), arrays, Some(NullBuffer::from(valid))))
+    Ok(StructArray::new(
+        fields.clone(),
+        arrays,
+        Some(NullBuffer::from(valid)),
+    ))
 }
 
 fn scalar_text(v: &Value) -> String {

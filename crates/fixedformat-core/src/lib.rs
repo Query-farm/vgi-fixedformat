@@ -18,9 +18,7 @@ pub mod template;
 pub mod value;
 pub mod zoned;
 
-pub use layout::{
-    parse_spec, Endian, Field, FieldKind, Justify, Layout, NumRepr, SignKind,
-};
+pub use layout::{parse_spec, Endian, Field, FieldKind, Justify, Layout, NumRepr, SignKind};
 pub use value::Value;
 
 /// The crate / worker version string.

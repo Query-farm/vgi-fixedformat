@@ -50,7 +50,12 @@ fn encode_field(
             let items: Vec<Value> = match value {
                 Value::List(items) => items.clone(),
                 Value::Null => vec![Value::Null; n],
-                other => return Err(Error(format!("field {} expects a list, got {other:?}", field.name))),
+                other => {
+                    return Err(Error(format!(
+                        "field {} expects a list, got {other:?}",
+                        field.name
+                    )))
+                }
             };
             for i in 0..n {
                 let at = base + field.offset + i * field.width;
@@ -75,7 +80,12 @@ fn encode_one(
             let fields = match value {
                 Value::Struct(f) => f.clone(),
                 Value::Null => Vec::new(),
-                other => return Err(Error(format!("field {} expects a struct, got {other:?}", field.name))),
+                other => {
+                    return Err(Error(format!(
+                        "field {} expects a struct, got {other:?}",
+                        field.name
+                    )))
+                }
             };
             // Only the base (first non-pad) child is written for REDEFINES groups;
             // for ordinary groups every child writes its own disjoint bytes.
@@ -140,15 +150,21 @@ fn encode_one(
             fill(buf, at, width, *pad, enc);
             Ok(())
         }
-        FieldKind::Decimal { precision, scale, repr, sign } => {
+        FieldKind::Decimal {
+            precision,
+            scale,
+            repr,
+            sign,
+        } => {
             let unscaled = as_decimal(value, *scale)?;
             let signed = !matches!(sign, SignKind::Unsigned);
             let bytes = match repr {
                 NumRepr::Comp3 => packed::encode(unscaled, width, signed)?,
                 NumRepr::Zoned => maybe_ebcdic(&zoned::encode(unscaled, width, signed)?, enc),
-                NumRepr::Display => {
-                    maybe_ebcdic(&encode_display_decimal(unscaled, *precision, width, *sign)?, enc)
-                }
+                NumRepr::Display => maybe_ebcdic(
+                    &encode_display_decimal(unscaled, *precision, width, *sign)?,
+                    enc,
+                ),
             };
             put(buf, at, &bytes);
             Ok(())
@@ -210,7 +226,10 @@ fn as_i128(v: &Value) -> Result<i128> {
         Value::Int(i) => Ok(*i as i128),
         Value::Decimal { unscaled, scale: 0 } => Ok(*unscaled),
         Value::Null => Ok(0),
-        Value::Text(s) => s.trim().parse().map_err(|_| Error(format!("not an integer: {s:?}"))),
+        Value::Text(s) => s
+            .trim()
+            .parse()
+            .map_err(|_| Error(format!("not an integer: {s:?}"))),
         other => Err(Error(format!("expected an integer, got {other:?}"))),
     }
 }
@@ -219,9 +238,7 @@ fn as_f64(v: &Value) -> Result<f64> {
     match v {
         Value::Float(f) => Ok(*f),
         Value::Int(i) => Ok(*i as f64),
-        Value::Decimal { unscaled, scale } => {
-            Ok(*unscaled as f64 / 10f64.powi(*scale as i32))
-        }
+        Value::Decimal { unscaled, scale } => Ok(*unscaled as f64 / 10f64.powi(*scale as i32)),
         Value::Null => Ok(0.0),
         other => Err(Error(format!("expected a float, got {other:?}"))),
     }
@@ -252,14 +269,18 @@ fn encode_display_int(n: i128, width: usize, signed: bool, sign: SignKind) -> Re
     let mag = n.unsigned_abs().to_string();
     match sign {
         SignKind::LeadingSeparate => {
-            let digits = width.checked_sub(1).ok_or_else(|| Error("width too small for sign".into()))?;
+            let digits = width
+                .checked_sub(1)
+                .ok_or_else(|| Error("width too small for sign".into()))?;
             let body = zero_pad(&mag, digits)?;
             let mut out = vec![if negative { b'-' } else { b'+' }];
             out.extend_from_slice(body.as_bytes());
             Ok(out)
         }
         SignKind::TrailingSeparate => {
-            let digits = width.checked_sub(1).ok_or_else(|| Error("width too small for sign".into()))?;
+            let digits = width
+                .checked_sub(1)
+                .ok_or_else(|| Error("width too small for sign".into()))?;
             let body = zero_pad(&mag, digits)?;
             let mut out = body.into_bytes();
             out.push(if negative { b'-' } else { b'+' });
@@ -281,16 +302,15 @@ fn encode_display_decimal(
     sign: SignKind,
 ) -> Result<Vec<u8>> {
     let signed = !matches!(sign, SignKind::Unsigned);
-    encode_display_int(unscaled, width.max(precision as usize), signed, sign)
-        .and_then(|b| {
-            if b.len() > width {
-                Err(Error(format!(
-                    "decimal value does not fit in field width {width}"
-                )))
-            } else {
-                Ok(b)
-            }
-        })
+    encode_display_int(unscaled, width.max(precision as usize), signed, sign).and_then(|b| {
+        if b.len() > width {
+            Err(Error(format!(
+                "decimal value does not fit in field width {width}"
+            )))
+        } else {
+            Ok(b)
+        }
+    })
 }
 
 fn zero_pad(mag: &str, width: usize) -> Result<String> {
@@ -347,20 +367,29 @@ fn f64_to_f16(value: f64) -> u16 {
 fn encode_hex(s: &str, width: usize, order: Endian) -> Result<Vec<u8>> {
     let clean: String = s.chars().filter(|c| !c.is_whitespace()).collect();
     if clean.len() % 2 != 0 {
-        return Err(Error("hex string must have an even number of digits".into()));
+        return Err(Error(
+            "hex string must have an even number of digits".into(),
+        ));
     }
     let mut bytes = Vec::with_capacity(clean.len() / 2);
     let chars: Vec<char> = clean.chars().collect();
     for pair in chars.chunks(2) {
-        let hi = pair[0].to_digit(16).ok_or_else(|| Error(format!("bad hex digit {:?}", pair[0])))? as u8;
-        let lo = pair[1].to_digit(16).ok_or_else(|| Error(format!("bad hex digit {:?}", pair[1])))? as u8;
+        let hi = pair[0]
+            .to_digit(16)
+            .ok_or_else(|| Error(format!("bad hex digit {:?}", pair[0])))? as u8;
+        let lo = pair[1]
+            .to_digit(16)
+            .ok_or_else(|| Error(format!("bad hex digit {:?}", pair[1])))? as u8;
         bytes.push(match order {
             Endian::Big => (hi << 4) | lo,
             Endian::Little => (lo << 4) | hi,
         });
     }
     if bytes.len() > width {
-        return Err(Error(format!("hex value of {} bytes exceeds field width {width}", bytes.len())));
+        return Err(Error(format!(
+            "hex value of {} bytes exceeds field width {width}",
+            bytes.len()
+        )));
     }
     bytes.resize(width, 0);
     Ok(bytes)
@@ -377,16 +406,44 @@ mod tests {
     }
 
     fn field(name: &str, offset: usize, width: usize, kind: FieldKind) -> Field {
-        Field { name: name.into(), offset, width, kind, occurs: None, redefines: None }
+        Field {
+            name: name.into(),
+            offset,
+            width,
+            kind,
+            occurs: None,
+            redefines: None,
+        }
     }
 
     #[test]
     fn text_and_int_round_trip() {
         let layout = Layout::from_fields(vec![
-            field("name", 0, 10, FieldKind::Text { justify: Justify::Left, trim: true, pad: b' ' }),
-            field("qty", 10, 5, FieldKind::Int { signed: false, sign: SignKind::Unsigned }),
-        ]).unwrap();
-        let vals = vec![("name".into(), Value::Text("JOHN".into())), ("qty".into(), Value::Int(42))];
+            field(
+                "name",
+                0,
+                10,
+                FieldKind::Text {
+                    justify: Justify::Left,
+                    trim: true,
+                    pad: b' ',
+                },
+            ),
+            field(
+                "qty",
+                10,
+                5,
+                FieldKind::Int {
+                    signed: false,
+                    sign: SignKind::Unsigned,
+                },
+            ),
+        ])
+        .unwrap();
+        let vals = vec![
+            ("name".into(), Value::Text("JOHN".into())),
+            ("qty".into(), Value::Int(42)),
+        ];
         let bytes = encode_record(&layout, &vals, Encoding::Ascii).unwrap();
         assert_eq!(&bytes, b"JOHN      00042");
         assert_eq!(rt(&layout, vals.clone(), Encoding::Ascii), vals);
@@ -395,11 +452,25 @@ mod tests {
     #[test]
     fn comp3_round_trip() {
         let layout = Layout::from_fields(vec![field(
-            "amt", 0, 3,
-            FieldKind::Decimal { precision: 5, scale: 2, repr: NumRepr::Comp3, sign: SignKind::Embedded },
-        )]).unwrap();
+            "amt",
+            0,
+            3,
+            FieldKind::Decimal {
+                precision: 5,
+                scale: 2,
+                repr: NumRepr::Comp3,
+                sign: SignKind::Embedded,
+            },
+        )])
+        .unwrap();
         for n in [12345i128, -6789, 0] {
-            let vals = vec![("amt".into(), Value::Decimal { unscaled: n, scale: 2 })];
+            let vals = vec![(
+                "amt".into(),
+                Value::Decimal {
+                    unscaled: n,
+                    scale: 2,
+                },
+            )];
             assert_eq!(rt(&layout, vals.clone(), Encoding::Ascii), vals);
         }
     }
@@ -407,19 +478,45 @@ mod tests {
     #[test]
     fn binary_and_float_round_trip() {
         let layout = Layout::from_fields(vec![
-            field("a", 0, 4, FieldKind::Binary { endian: Endian::Little, signed: true }),
-            field("b", 4, 8, FieldKind::Float { bits: 64, endian: Endian::Big }),
-        ]).unwrap();
-        let vals = vec![("a".into(), Value::Int(-12345)), ("b".into(), Value::Float(2.5))];
+            field(
+                "a",
+                0,
+                4,
+                FieldKind::Binary {
+                    endian: Endian::Little,
+                    signed: true,
+                },
+            ),
+            field(
+                "b",
+                4,
+                8,
+                FieldKind::Float {
+                    bits: 64,
+                    endian: Endian::Big,
+                },
+            ),
+        ])
+        .unwrap();
+        let vals = vec![
+            ("a".into(), Value::Int(-12345)),
+            ("b".into(), Value::Float(2.5)),
+        ];
         assert_eq!(rt(&layout, vals.clone(), Encoding::Ascii), vals);
     }
 
     #[test]
     fn separate_sign_round_trip() {
         let layout = Layout::from_fields(vec![field(
-            "n", 0, 6,
-            FieldKind::Int { signed: true, sign: SignKind::LeadingSeparate },
-        )]).unwrap();
+            "n",
+            0,
+            6,
+            FieldKind::Int {
+                signed: true,
+                sign: SignKind::LeadingSeparate,
+            },
+        )])
+        .unwrap();
         let vals = vec![("n".into(), Value::Int(-123))];
         let bytes = encode_record(&layout, &vals, Encoding::Ascii).unwrap();
         assert_eq!(&bytes, b"-00123");
@@ -429,12 +526,38 @@ mod tests {
     #[test]
     fn ebcdic_round_trip() {
         let layout = Layout::from_fields(vec![
-            field("name", 0, 5, FieldKind::Text { justify: Justify::Left, trim: true, pad: b' ' }),
-            field("amt", 5, 3, FieldKind::Decimal { precision: 5, scale: 2, repr: NumRepr::Comp3, sign: SignKind::Embedded }),
-        ]).unwrap();
+            field(
+                "name",
+                0,
+                5,
+                FieldKind::Text {
+                    justify: Justify::Left,
+                    trim: true,
+                    pad: b' ',
+                },
+            ),
+            field(
+                "amt",
+                5,
+                3,
+                FieldKind::Decimal {
+                    precision: 5,
+                    scale: 2,
+                    repr: NumRepr::Comp3,
+                    sign: SignKind::Embedded,
+                },
+            ),
+        ])
+        .unwrap();
         let vals = vec![
             ("name".into(), Value::Text("ABC".into())),
-            ("amt".into(), Value::Decimal { unscaled: 12345, scale: 2 }),
+            (
+                "amt".into(),
+                Value::Decimal {
+                    unscaled: 12345,
+                    scale: 2,
+                },
+            ),
         ];
         assert_eq!(rt(&layout, vals.clone(), Encoding::Ebcdic), vals);
     }
@@ -442,8 +565,16 @@ mod tests {
     #[test]
     fn text_overflow_errors() {
         let layout = Layout::from_fields(vec![field(
-            "name", 0, 3, FieldKind::Text { justify: Justify::Left, trim: true, pad: b' ' },
-        )]).unwrap();
+            "name",
+            0,
+            3,
+            FieldKind::Text {
+                justify: Justify::Left,
+                trim: true,
+                pad: b' ',
+            },
+        )])
+        .unwrap();
         let vals = vec![("name".into(), Value::Text("TOOLONG".into()))];
         assert!(encode_record(&layout, &vals, Encoding::Ascii).is_err());
     }

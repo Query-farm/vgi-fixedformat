@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  build-test:
+    name: fmt · clippy · unit + proptest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # The worker depends on the VGI Rust SDK via a path dependency
+      # (`../vgi-rust/vgi`), so every cargo command needs it present as a sibling.
+      - name: Clone vgi-rust SDK (path dependency)
+        run: git clone --depth 1 https://github.com/Query-farm/vgi-rust.git "${{ github.workspace }}/../vgi-rust"
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Format check
+        run: cargo fmt --all -- --check
+
+      - name: Clippy (deny warnings)
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
+      - name: Unit tests + property-based round-trip fuzzing
+        run: cargo test --workspace --all-features
+
+  e2e:
+    name: SQLLogic e2e (haybarn)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Clone vgi-rust SDK (path dependency)
+        run: git clone --depth 1 https://github.com/Query-farm/vgi-rust.git "${{ github.workspace }}/../vgi-rust"
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Install haybarn DuckDB unittest tooling
+        run: |
+          uv tool install haybarn-unittest
+          uv tool install haybarn
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Install the vgi community extension
+        run: echo "INSTALL vgi FROM community;" | uvx haybarn-cli
+
+      - name: Run SQLLogic suite against the built worker
+        run: ./run_tests.sh

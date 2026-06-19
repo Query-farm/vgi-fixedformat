@@ -1,0 +1,24 @@
+version: 2
+updates:
+  # Rust crate dependencies (Cargo.toml / Cargo.lock). The `vgi` path dependency
+  # is ignored automatically; crates.io deps (arrow, serde, proptest, vgi-rpc, …)
+  # are checked weekly.
+  - package-ecosystem: cargo
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
+    groups:
+      arrow:
+        patterns:
+          - "arrow*"
+    commit-message:
+      prefix: "deps"
+
+  # GitHub Actions used in the workflows.
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: "ci"

@@ -71,7 +71,9 @@ fn newline(data: &[u8]) -> Vec<&[u8]> {
 
 fn fixed(data: &[u8], record_len: usize) -> Result<Vec<&[u8]>> {
     if record_len == 0 {
-        return Err(Error("fixed framing requires a non-zero record length".into()));
+        return Err(Error(
+            "fixed framing requires a non-zero record length".into(),
+        ));
     }
     if data.len() % record_len != 0 {
         return Err(Error(format!(

@@ -23,7 +23,10 @@ pub fn layout(args: &Arguments, spec_pos: usize) -> Result<Layout> {
 /// Resolve the byte encoding from a named `encoding` / `codepage` argument
 /// (table / buffering functions, which support named parameters).
 pub fn encoding(args: &Arguments) -> Result<Encoding> {
-    match args.named_str("encoding").or_else(|| args.named_str("codepage")) {
+    match args
+        .named_str("encoding")
+        .or_else(|| args.named_str("codepage"))
+    {
         Some(s) => Encoding::parse(&s).map_err(|e| ve(e.to_string())),
         None => Ok(Encoding::Ascii),
     }
