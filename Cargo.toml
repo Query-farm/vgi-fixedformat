@@ -14,7 +14,7 @@ authors = ["Query Farm LLC <hello@query.farm>"]
 # arrow 58 transitively; keep arrow/vgi-rpc here in lockstep with vgi's pins so a
 # single arrow/vgi-rpc resolves.
 vgi = "0.5.0"
-vgi-rpc = { version = "0.2.0", default-features = false, features = ["macros", "http"] }
+vgi-rpc = { version = "0.3.0", default-features = false, features = ["macros", "http"] }
 arrow = { version = "58", default-features = false, features = ["ipc"] }
 arrow-array = "58"
 arrow-buffer = "58"
