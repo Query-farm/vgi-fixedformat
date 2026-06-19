@@ -59,10 +59,11 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v5
 
-      - name: Install haybarn DuckDB unittest tooling
+      - name: Install the haybarn unittest runner
+        # Only `haybarn-unittest` is installed as a tool; `haybarn-cli` (used to
+        # install the vgi extension) is fetched on demand by `uvx` in run_tests.sh.
         run: |
           uv tool install haybarn-unittest
-          uv tool install haybarn
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: Install the vgi community extension
