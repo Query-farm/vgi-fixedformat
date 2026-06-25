@@ -366,7 +366,7 @@ fn f64_to_f16(value: f64) -> u16 {
 
 fn encode_hex(s: &str, width: usize, order: Endian) -> Result<Vec<u8>> {
     let clean: String = s.chars().filter(|c| !c.is_whitespace()).collect();
-    if clean.len() % 2 != 0 {
+    if !clean.len().is_multiple_of(2) {
         return Err(Error(
             "hex string must have an even number of digits".into(),
         ));

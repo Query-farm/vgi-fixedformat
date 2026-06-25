@@ -75,7 +75,7 @@ fn fixed(data: &[u8], record_len: usize) -> Result<Vec<&[u8]>> {
             "fixed framing requires a non-zero record length".into(),
         ));
     }
-    if data.len() % record_len != 0 {
+    if !data.len().is_multiple_of(record_len) {
         return Err(Error(format!(
             "fixed-length stream of {} bytes is not a multiple of record length {record_len}",
             data.len()
