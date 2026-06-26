@@ -135,6 +135,45 @@ fn catalog_metadata(name: &str) -> CatalogModel {
                          '01 R. 05 NM PIC X(5). 05 AMT PIC S9(3)V99 COMP-3.', \
                          encoding => 'ebcdic', framing => 'fixed')",
                     ),
+                    (
+                        "pack_ascii_record",
+                        "We need to emit a single fixed-width record for an export. The layout is a \
+                         10-character left-justified, space-padded account name followed by a \
+                         5-digit zero-padded quantity. Build the record for account name 'ALICE' \
+                         with quantity 5 and return the resulting record text as a single column \
+                         named record.",
+                        "SELECT fixed.main.pack_fixed({'name': 'ALICE', 'qty': 5}, \
+                         'name:A10 qty:9(5)')::VARCHAR AS record",
+                    ),
+                    (
+                        "pack_ebcdic_comp3_hex",
+                        "A mainframe ingest job needs an account record encoded the way the host \
+                         expects it: the name as a 5-byte EBCDIC field (PIC X(5)) followed by a \
+                         signed packed-decimal amount PIC S9(3)V99 COMP-3. Encode name 'ACME' with \
+                         amount 123.45 and return the resulting record bytes as an uppercase hex \
+                         string in a single column named record_hex.",
+                        "SELECT hex(fixed.main.pack_fixed({'NM': 'ACME', 'AMT': 123.45}, \
+                         '01 R. 05 NM PIC X(5). 05 AMT PIC S9(3)V99 COMP-3.', 'ebcdic')) \
+                         AS record_hex",
+                    ),
+                    (
+                        "write_accounts_file",
+                        "Export two accounts to a newline-delimited fixed-width file at \
+                         data/_agent_write.dat, where each record is a 10-character left-justified \
+                         name followed by a 5-digit zero-padded quantity: ALICE with quantity 5 and \
+                         BOB with quantity 999. Return the write summary with a column named \
+                         rows_written and a column named bytes_written.",
+                        "SELECT rows_written, bytes_written FROM fixed.main.write_fixed(\
+                         (FROM (VALUES ('ALICE', 5), ('BOB', 999)) AS v(name, qty)), \
+                         'data/_agent_write.dat', 'name:A10 qty:9(5)')",
+                    ),
+                    (
+                        "worker_version",
+                        "Before relying on the fixed-format worker in a pipeline, an analyst wants \
+                         to record which build is attached. Return the worker's version string as \
+                         a single row with one column named version.",
+                        "SELECT fixed.main.fixedformat_version() AS version",
+                    ),
                 ]),
             ),
             ("vgi.author".to_string(), "Query.Farm".to_string()),
