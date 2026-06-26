@@ -570,4 +570,118 @@ mod tests {
         assert_eq!(parse_bool("0"), Some(false));
         assert_eq!(parse_bool("maybe"), None);
     }
+
+    /// End-to-end proof that two `s3://` paths needing two different secrets each
+    /// reach the object store with the RIGHT credentials. A tiny in-process mock
+    /// S3 endpoint records the AWS access-key id from each request's SigV4
+    /// `Authorization` header; we read one object per bucket using two scoped
+    /// secrets (different `key_id`s) and assert each bucket's request carried its
+    /// own access key. This exercises `read_object` → `build_store` →
+    /// `Secrets::for_scope_of_type` → object_store over real HTTP.
+    #[test]
+    fn two_paths_use_two_different_secrets() {
+        use std::collections::HashMap;
+        use std::io::{Read, Write};
+        use std::sync::{Arc, Mutex};
+
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        // (request path, access-key-id) seen by the mock, in order.
+        let seen: Arc<Mutex<Vec<(String, String)>>> = Arc::new(Mutex::new(Vec::new()));
+        let seen_srv = seen.clone();
+        let body: &'static [u8] = b"JANE007\nJOHN042\n";
+
+        std::thread::spawn(move || {
+            for stream in listener.incoming() {
+                let Ok(mut s) = stream else { break };
+                // Read request headers (GET has no body).
+                let mut data = Vec::new();
+                let mut buf = [0u8; 2048];
+                loop {
+                    match s.read(&mut buf) {
+                        Ok(0) | Err(_) => break,
+                        Ok(n) => {
+                            data.extend_from_slice(&buf[..n]);
+                            if data.windows(4).any(|w| w == b"\r\n\r\n") {
+                                break;
+                            }
+                        }
+                    }
+                }
+                let req = String::from_utf8_lossy(&data);
+                let path = req
+                    .lines()
+                    .next()
+                    .and_then(|l| l.split_whitespace().nth(1))
+                    .and_then(|p| p.split('?').next())
+                    .unwrap_or("")
+                    .to_string();
+                // Pull the access key id out of `... Credential=<AK>/...`.
+                let ak = req
+                    .lines()
+                    .find(|l| l.to_ascii_lowercase().starts_with("authorization:"))
+                    .and_then(|l| l.split("Credential=").nth(1))
+                    .and_then(|c| c.split('/').next())
+                    .unwrap_or("")
+                    .to_string();
+                seen_srv.lock().unwrap().push((path, ak));
+                let resp = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nContent-Type: \
+                     application/octet-stream\r\nETag: \"t\"\r\nAccept-Ranges: bytes\r\n\
+                     Last-Modified: Thu, 01 Jan 1970 00:00:00 GMT\r\nConnection: close\r\n\r\n",
+                    body.len()
+                );
+                let _ = s.write_all(resp.as_bytes());
+                let _ = s.write_all(body);
+                let _ = s.flush();
+            }
+        });
+
+        let endpoint = format!("127.0.0.1:{port}");
+        let mk = |key_id: &str, scope: &str| -> HashMap<String, String> {
+            let mut m: HashMap<String, String> = [
+                ("type", "s3"),
+                ("key_id", key_id),
+                ("secret", "test-secret-key"),
+                ("region", "us-east-1"),
+                ("url_style", "path"),
+                ("use_ssl", "false"),
+                ("scope", scope),
+            ]
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect();
+            m.insert("endpoint".to_string(), endpoint.clone());
+            m
+        };
+        let secrets = Secrets {
+            by_name: HashMap::from([
+                ("sec_a".to_string(), mk("AKIDBUCKETA", "s3://bucket-a")),
+                ("sec_b".to_string(), mk("AKIDBUCKETB", "s3://bucket-b")),
+            ]),
+        };
+
+        let a = read_object(&Url::parse("s3://bucket-a/data.dat").unwrap(), &secrets, &[]).unwrap();
+        let b = read_object(&Url::parse("s3://bucket-b/data.dat").unwrap(), &secrets, &[]).unwrap();
+        assert_eq!(a, body);
+        assert_eq!(b, body);
+
+        let seen = seen.lock().unwrap();
+        let ak_for = |p: &str| {
+            seen.iter()
+                .find(|(path, _)| path == p)
+                .map(|(_, ak)| ak.clone())
+        };
+        // The crux: each bucket's request carried ITS OWN access key.
+        assert_eq!(
+            ak_for("/bucket-a/data.dat").as_deref(),
+            Some("AKIDBUCKETA"),
+            "bucket-a must use secret sec_a's key; seen={seen:?}"
+        );
+        assert_eq!(
+            ak_for("/bucket-b/data.dat").as_deref(),
+            Some("AKIDBUCKETB"),
+            "bucket-b must use secret sec_b's key; seen={seen:?}"
+        );
+    }
 }
