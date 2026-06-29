@@ -5,12 +5,13 @@
 use std::sync::Arc;
 
 use arrow_array::builder::{
-    BooleanBuilder, Decimal128Builder, Float32Builder, Float64Builder, Int64Builder, StringBuilder,
+    BooleanBuilder, Date32Builder, Decimal128Builder, Float32Builder, Float64Builder, Int64Builder,
+    StringBuilder, Time64MicrosecondBuilder, TimestampMicrosecondBuilder,
 };
 use arrow_array::{ArrayRef, StructArray};
 use arrow_buffer::{NullBuffer, OffsetBuffer, ScalarBuffer};
-use arrow_schema::{DataType, Field as ArrowField, Fields};
-use fixedformat_core::layout::{Field, FieldKind, Layout};
+use arrow_schema::{DataType, Field as ArrowField, Fields, TimeUnit};
+use fixedformat_core::layout::{DateTimeKind, Field, FieldKind, Layout};
 use fixedformat_core::Value;
 use vgi_rpc::{Result, RpcError};
 
@@ -73,6 +74,11 @@ fn base_type(f: &Field) -> Result<DataType> {
             }
             DataType::Struct(Fields::from(fields))
         }
+        FieldKind::DateTime { kind, .. } => match kind {
+            DateTimeKind::Date => DataType::Date32,
+            DateTimeKind::Time => DataType::Time64(TimeUnit::Microsecond),
+            DateTimeKind::Timestamp => DataType::Timestamp(TimeUnit::Microsecond, None),
+        },
     })
 }
 
@@ -151,6 +157,39 @@ pub fn build_array(dt: &DataType, col: &[Value]) -> Result<ArrayRef> {
             }
             let arr = b.finish().with_precision_and_scale(*p, *s).map_err(rt)?;
             Ok(Arc::new(arr))
+        }
+        DataType::Date32 => {
+            let mut b = Date32Builder::new();
+            for v in col {
+                match v {
+                    Value::Date(d) => b.append_value(*d),
+                    Value::Null => b.append_null(),
+                    other => return Err(rt(format!("expected date, got {other:?}"))),
+                }
+            }
+            Ok(Arc::new(b.finish()))
+        }
+        DataType::Time64(TimeUnit::Microsecond) => {
+            let mut b = Time64MicrosecondBuilder::new();
+            for v in col {
+                match v {
+                    Value::Time(t) => b.append_value(*t),
+                    Value::Null => b.append_null(),
+                    other => return Err(rt(format!("expected time, got {other:?}"))),
+                }
+            }
+            Ok(Arc::new(b.finish()))
+        }
+        DataType::Timestamp(TimeUnit::Microsecond, None) => {
+            let mut b = TimestampMicrosecondBuilder::new();
+            for v in col {
+                match v {
+                    Value::Timestamp(t) => b.append_value(*t),
+                    Value::Null => b.append_null(),
+                    other => return Err(rt(format!("expected timestamp, got {other:?}"))),
+                }
+            }
+            Ok(Arc::new(b.finish()))
         }
         DataType::List(item) => build_list(item, col),
         DataType::Struct(fields) => Ok(Arc::new(build_struct(fields, col)?)),

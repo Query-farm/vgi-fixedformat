@@ -3,11 +3,12 @@
 
 use arrow_array::cast::AsArray;
 use arrow_array::types::{
-    Decimal128Type, Float32Type, Float64Type, Int16Type, Int32Type, Int64Type, Int8Type,
-    UInt16Type, UInt32Type, UInt64Type, UInt8Type,
+    Date32Type, Decimal128Type, Float32Type, Float64Type, Int16Type, Int32Type, Int64Type,
+    Int8Type, Time64MicrosecondType, TimestampMicrosecondType, UInt16Type, UInt32Type, UInt64Type,
+    UInt8Type,
 };
 use arrow_array::{Array, ArrayRef};
-use arrow_schema::DataType;
+use arrow_schema::{DataType, TimeUnit};
 use fixedformat_core::Value;
 use vgi_rpc::{Result, RpcError};
 
@@ -38,6 +39,13 @@ pub fn value_at(array: &ArrayRef, row: usize) -> Result<Value> {
             unscaled: array.as_primitive::<Decimal128Type>().value(row),
             scale: (*scale).max(0) as u8,
         },
+        DataType::Date32 => Value::Date(array.as_primitive::<Date32Type>().value(row)),
+        DataType::Time64(TimeUnit::Microsecond) => {
+            Value::Time(array.as_primitive::<Time64MicrosecondType>().value(row))
+        }
+        DataType::Timestamp(TimeUnit::Microsecond, _) => {
+            Value::Timestamp(array.as_primitive::<TimestampMicrosecondType>().value(row))
+        }
         DataType::List(_) => {
             let list = array.as_list::<i32>();
             let items = list.value(row);

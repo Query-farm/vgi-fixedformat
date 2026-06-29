@@ -214,6 +214,11 @@ fn encode_one(
             put(buf, at, &bytes);
             Ok(width)
         }
+        FieldKind::DateTime { format, .. } => {
+            let bytes = crate::datetime::format(value, format, width, &field.name)?;
+            put(buf, at, &maybe_ebcdic(&bytes, enc));
+            Ok(width)
+        }
     }
 }
 

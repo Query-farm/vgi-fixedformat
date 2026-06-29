@@ -8,7 +8,7 @@
 //! at decode time; the reported `offset` is then the static base and `occurs`
 //! is the declared maximum (with `depending_on` naming the controlling field).
 
-use crate::layout::{Endian, Field, FieldKind, Layout, NumRepr};
+use crate::layout::{DateTimeKind, Endian, Field, FieldKind, Layout, NumRepr};
 
 /// One row of `describe_fixed` output: a single field in the layout.
 #[derive(Debug, Clone, PartialEq)]
@@ -99,6 +99,11 @@ fn kind_label(f: &Field) -> String {
             NumRepr::Display => "decimal (display)".into(),
         },
         FieldKind::Group(_) => "group".into(),
+        FieldKind::DateTime { kind, .. } => match kind {
+            DateTimeKind::Date => "date".into(),
+            DateTimeKind::Time => "time".into(),
+            DateTimeKind::Timestamp => "timestamp".into(),
+        },
     }
 }
 
@@ -128,6 +133,11 @@ fn base_sql_type(f: &Field) -> String {
             format!("DECIMAL({p},{scale})")
         }
         FieldKind::Group(_) => "STRUCT".into(),
+        FieldKind::DateTime { kind, .. } => match kind {
+            DateTimeKind::Date => "DATE".into(),
+            DateTimeKind::Time => "TIME".into(),
+            DateTimeKind::Timestamp => "TIMESTAMP".into(),
+        },
     }
 }
 

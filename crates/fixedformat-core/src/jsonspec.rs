@@ -29,7 +29,7 @@
 
 use serde::Deserialize;
 
-use crate::layout::{Endian, Field, FieldKind, Justify, Layout, NumRepr, SignKind};
+use crate::layout::{DateTimeKind, Endian, Field, FieldKind, Justify, Layout, NumRepr, SignKind};
 use crate::{Error, Result};
 
 #[derive(Deserialize)]
@@ -53,6 +53,9 @@ struct JsonField {
     justify: Option<String>,
     pad: Option<String>,
     sign: Option<String>,
+    /// strftime-style pattern for a `date` / `time` / `datetime` field (e.g.
+    /// `%Y%m%d`). Required for those types, ignored otherwise.
+    format: Option<String>,
     /// Nested group: child fields rendered as a STRUCT column. With `occurs`
     /// it becomes a LIST of STRUCT. When present this field is a group and
     /// `type` is optional (`"group"`/`"struct"` are accepted but ignored).
@@ -192,6 +195,27 @@ fn field_kind(jf: &JsonField) -> Result<(FieldKind, usize)> {
                 digits as usize + sep,
             ))
         }
+        "date" => Ok((
+            FieldKind::DateTime {
+                kind: DateTimeKind::Date,
+                format: req_format(jf)?,
+            },
+            req_width(jf)?,
+        )),
+        "time" => Ok((
+            FieldKind::DateTime {
+                kind: DateTimeKind::Time,
+                format: req_format(jf)?,
+            },
+            req_width(jf)?,
+        )),
+        "datetime" | "timestamp" => Ok((
+            FieldKind::DateTime {
+                kind: DateTimeKind::Timestamp,
+                format: req_format(jf)?,
+            },
+            req_width(jf)?,
+        )),
         "float" | "real" | "single" | "f32" => Ok((FieldKind::Float { bits: 32, endian }, 4)),
         "double" | "f64" => Ok((FieldKind::Float { bits: 64, endian }, 8)),
         "half" | "f16" => Ok((FieldKind::Float { bits: 16, endian }, 2)),
@@ -214,6 +238,13 @@ fn req_width(jf: &JsonField) -> Result<usize> {
     jf.width
         .or(jf.digits.map(|d| d as usize))
         .ok_or_else(|| Error(format!("field {:?} requires a width", jf.name)))
+}
+
+fn req_format(jf: &JsonField) -> Result<String> {
+    jf.format
+        .clone()
+        .filter(|f| !f.is_empty())
+        .ok_or_else(|| Error(format!("field {:?} requires a \"format\"", jf.name)))
 }
 
 fn req_digits(jf: &JsonField) -> Result<u8> {
@@ -377,5 +408,51 @@ mod tests {
         let spec = r#"[{"name":"x","width":4}]"#;
         let err = parse(spec).unwrap_err().0;
         assert!(err.contains("requires a type"), "{err}");
+    }
+
+    #[test]
+    fn date_field_parses_to_datetime_kind() {
+        let spec = r#"[{"name":"d","type":"date","width":8,"format":"%Y%m%d"}]"#;
+        let layout = parse(spec).unwrap();
+        assert_eq!(layout.record_len, 8);
+        match &layout.fields[0].kind {
+            FieldKind::DateTime { kind, format } => {
+                assert_eq!(*kind, DateTimeKind::Date);
+                assert_eq!(format, "%Y%m%d");
+            }
+            other => panic!("expected DateTime, got {other:?}"),
+        }
+        let out = decode_record(&layout, b"20240131", Encoding::Ascii).unwrap();
+        assert_eq!(out[0].1, Value::Date(19753));
+    }
+
+    #[test]
+    fn time_and_timestamp_types() {
+        let spec = r#"[
+            {"name":"t","type":"time","width":6,"format":"%H%M%S"},
+            {"name":"ts","type":"timestamp","width":14,"format":"%Y%m%d%H%M%S"}
+        ]"#;
+        let layout = parse(spec).unwrap();
+        assert!(matches!(
+            layout.fields[0].kind,
+            FieldKind::DateTime {
+                kind: DateTimeKind::Time,
+                ..
+            }
+        ));
+        assert!(matches!(
+            layout.fields[1].kind,
+            FieldKind::DateTime {
+                kind: DateTimeKind::Timestamp,
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn date_without_format_errors() {
+        let spec = r#"[{"name":"d","type":"date","width":8}]"#;
+        let err = parse(spec).unwrap_err().0;
+        assert!(err.contains("requires a \"format\""), "{err}");
     }
 }

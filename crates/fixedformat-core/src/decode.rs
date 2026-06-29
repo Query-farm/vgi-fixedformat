@@ -179,6 +179,9 @@ fn decode_one(
                 scale: *scale,
             }
         }
+        FieldKind::DateTime { kind, format } => {
+            crate::datetime::parse(*kind, format, &to_ascii(slice, enc), &field.name)?
+        }
     };
     Ok((value, field.width))
 }

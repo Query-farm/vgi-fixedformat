@@ -8,6 +8,7 @@
 
 pub mod compression;
 pub mod copybook;
+pub mod datetime;
 pub mod decode;
 pub mod describe;
 pub mod ebcdic;
@@ -21,7 +22,9 @@ pub mod template;
 pub mod value;
 pub mod zoned;
 
-pub use layout::{parse_spec, Endian, Field, FieldKind, Justify, Layout, NumRepr, SignKind};
+pub use layout::{
+    parse_spec, DateTimeKind, Endian, Field, FieldKind, Justify, Layout, NumRepr, SignKind,
+};
 pub use value::Value;
 
 /// The crate / worker version string.
