@@ -22,8 +22,10 @@ needed.
   spec format is auto-detected on the scalar path.
 - `fixed.main.pack_fixed(struct, spec [, encoding])` — format a STRUCT back into a
   BLOB. `pack_fixed(unpack_fixed(rec, s), s) == rec`.
-- `fixed.main.read_fixed(path, spec [, format =>, encoding =>, framing =>, record_length =>])`
-  — scan a fixed-width file (table function; `path` may glob).
+- `fixed.main.read_fixed(path, spec [, format =>, encoding =>, framing =>, record_length =>, compression =>])`
+  — scan a fixed-width file (table function; `path` may glob). `compression =>`
+  is `auto` (default; gzip/zstd detected by magic bytes) / `none` / `gzip` /
+  `zstd` — decompressed before framing, local or `s3://` alike.
 - `fixed.main.write_fixed((FROM rel), path, spec [, format =>, encoding =>, framing =>])`
   — write a relation to a fixed-width file (table-buffering sink); returns
   `(rows_written, bytes_written)`.
@@ -37,7 +39,7 @@ needed.
   (ODO controller, else NULL). Flatten logic is in `fixedformat-core/src/describe.rs`.
 - `fixed.main.fixedformat_version()`.
 - `COPY <table> FROM '<path>' (FORMAT 'fixed.fixed', spec '<layout>' [, format, encoding,
-  framing, record_length, endpoint, region, url_style, use_ssl])` — load a fixed-width
+  framing, record_length, compression, endpoint, region, url_style, use_ssl])` — load a fixed-width
   file straight into a DuckDB table (the COPY-FROM counterpart of `read_fixed`,
   in `crates/fixedformat-worker/src/copy_from.rs`). The format is **catalog-qualified**
   (`'<attach-name>.fixed'`, e.g. `'fixed.fixed'`). The output schema is the COPY
@@ -133,12 +135,23 @@ floats → `REAL`/`DOUBLE`, text/hex → `VARCHAR`, `?` → `BOOLEAN`. Encodings
 `ascii` (default) / `ebcdic` (CP037). Framing: `newline` (default) / `fixed` /
 `rdw` / `rdw_blocked`.
 
+Compression (read side only — `read_fixed` + `COPY … FROM`): `compression =>`
+`auto` (default) / `none` / `gzip` / `zstd`. `auto` sniffs the buffer's magic
+bytes (`1f 8b` gzip, `28 b5 2f fd` zstd) and decompresses the whole file/object
+before framing — so it composes with every framing/encoding and works for local
+and `s3://` paths. Logic is `fixedformat-core/src/compression.rs`
+(`Compression::{parse,detect}` + `decompress`, via `flate2`/`zstd`); the worker
+applies it in `table::read_all` right after the bytes are read, and
+`options::compression` maps the named arg (`None` ⇒ auto). Writing compressed
+output is **not** supported (`write_fixed` / `COPY … TO` emit raw bytes).
+
 ## Layout
 
 - `crates/fixedformat-core` — pure codecs, **no Arrow/VGI deps** (`unsafe`
   forbidden). The Layout IR (`layout.rs`) + three parsers (`template`, `jsonspec`,
   `copybook`) + decode/encode + `packed` (COMP-3) / `zoned` / `ebcdic` (CP037
-  tables) / `framing`. All correctness lives here, unit-tested directly.
+  tables) / `framing` / `compression` (gzip/zstd input decompression). All
+  correctness lives here, unit-tested directly.
 - `crates/fixedformat-worker` — thin Arrow/VGI adapter: `arrow_map.rs` (Layout →
   Arrow fields, Value → arrays incl. Decimal128/List/Struct), `value_in.rs` (Arrow
   → Value for pack/write), `options.rs`, and `scalar/`, `table/`, `buffering/`.

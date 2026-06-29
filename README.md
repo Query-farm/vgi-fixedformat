@@ -101,7 +101,20 @@ SELECT * FROM read_fixed('data/master.dat',
 ```
 
 `path` may be a glob (`data/*.dat`). Options are **named**: `format`, `encoding`,
-`framing`, `record_length`.
+`framing`, `record_length`, `compression`.
+
+**Compressed files are read transparently.** A `.gz` (gzip) or `.zst`
+(Zstandard) file is detected from its magic bytes and decompressed before
+framing — locally or from S3 — so no separate decompress step is needed:
+
+```sql
+SELECT * FROM read_fixed('data/accounts.dat.gz', 'name:A10 qty:9(5)');         -- auto
+SELECT * FROM read_fixed('s3://bucket/big.dat.zst', 'name:A10 qty:9(5)');      -- auto, from S3
+```
+
+Override detection with `compression =>` `'auto'` (default), `'none'`, `'gzip'`,
+or `'zstd'` — use `'none'` to force raw bytes, or name a codec for a file whose
+extension doesn't match.
 
 ### `write_fixed` — write a file
 
@@ -152,7 +165,8 @@ COPY (SELECT name, qty FROM accounts)
 ```
 
 Options mirror the table functions: `spec` (required), `format`, `encoding`,
-`framing`, plus `endpoint`/`region`/`url_style`/`use_ssl` for `s3://` paths. On
+`framing`, `compression` (gzip/zstd, auto-detected), plus
+`endpoint`/`region`/`url_style`/`use_ssl` for `s3://` paths. On
 `COPY … FROM`, decoded columns map to the target table's columns **by position**;
 on `COPY … TO`, input columns map to layout fields **by name**. The reader and
 writer use **different** format names (`fixed.fixed` vs `fixed.fixed_out`) because
@@ -274,7 +288,7 @@ Real copybook text — paste it straight in.
 | OCCURS / OCCURS DEPENDING ON | `LIST` of the above (variable-length for DEPENDING ON) |
 | group / nested `fields` / REDEFINES | `STRUCT` |
 
-## Encodings & framing
+## Encodings, framing & compression
 
 - **encoding**: `ascii` (default) or `ebcdic` (code page 037).
 - **framing** (how records are delimited in a file):
@@ -284,6 +298,11 @@ Real copybook text — paste it straight in.
   - `rdw` — IBM variable-length: each record prefixed with a 4-byte Record
     Descriptor Word.
   - `rdw_blocked` — RDW records inside Block Descriptor Word blocks.
+- **compression** (`read_fixed` / `COPY … FROM`): `auto` (default — detect
+  `gzip`/`zstd` from magic bytes, else read raw), `none`, `gzip`, or `zstd`.
+  Decompression happens before framing and works for local and `s3://` paths
+  alike. (Writing compressed output is not yet supported — `write_fixed` /
+  `COPY … TO` emit raw bytes.)
 
 ---
 

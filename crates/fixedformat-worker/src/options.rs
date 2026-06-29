@@ -1,6 +1,7 @@
 //! Shared option parsing: turn a worker call's arguments into a [`Layout`] plus
 //! encoding/framing selections.
 
+use fixedformat_core::compression::Compression;
 use fixedformat_core::framing::Framing;
 use fixedformat_core::{parse_spec, Encoding, Layout};
 use vgi::arguments::Arguments;
@@ -92,6 +93,20 @@ pub fn framing(args: &Arguments) -> Result<Framing> {
     match args.named_str("framing") {
         Some(s) => Framing::parse(&s).map_err(|e| ve(e.to_string())),
         None => Ok(Framing::Newline),
+    }
+}
+
+/// Resolve the input compression from a named `compression` argument.
+/// Returns `None` for "auto" (the default when the arg is absent) — meaning the
+/// reader should detect the codec from the data's magic bytes — and `Some(codec)`
+/// for an explicit `none` / `gzip` / `zstd`.
+pub fn compression(args: &Arguments) -> Result<Option<Compression>> {
+    match args.named_str("compression") {
+        None => Ok(None),
+        Some(s) if s.trim().eq_ignore_ascii_case("auto") => Ok(None),
+        Some(s) => Compression::parse(&s)
+            .map(Some)
+            .map_err(|e| ve(e.to_string())),
     }
 }
 

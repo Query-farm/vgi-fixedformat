@@ -139,6 +139,14 @@ impl CopyFromFunction for CopyFixed {
                  the length implied by the layout `spec`.",
             ),
             ArgSpec::column(
+                "compression",
+                -1,
+                "varchar",
+                "Input compression: 'auto' (the default — detect gzip/zstd from the file's magic \
+                 bytes, else read raw), 'none', 'gzip', or 'zstd'. Applies to local and cloud \
+                 paths alike; decompression happens before framing/decoding.",
+            ),
+            ArgSpec::column(
                 "endpoint",
                 -1,
                 "varchar",
@@ -194,6 +202,7 @@ impl CopyFromFunction for CopyFixed {
             .named_i64("record_length")
             .map(|n| n as usize)
             .unwrap_or(layout.record_len);
+        let compression = options::compression(ctx.options)?;
         let overrides = options::cloud_overrides(ctx.options);
 
         // The source path may be local or a cloud URL (with secrets/overrides).
@@ -204,6 +213,7 @@ impl CopyFromFunction for CopyFixed {
             enc,
             framing,
             rec_len,
+            compression,
             &ctx.params.secrets,
             &overrides,
         )?;

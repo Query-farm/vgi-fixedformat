@@ -18,6 +18,65 @@ SELECT qty FROM fixed.main.read_fixed('data/accounts.dat', 'name:A10 qty:9(5)') 
 42
 100
 
+# Transparent decompression — gzip, auto-detected from magic bytes (no option).
+# accounts.dat.gz decodes byte-for-byte to accounts.dat, so the rows match.
+query I
+SELECT qty FROM fixed.main.read_fixed('data/accounts.dat.gz', 'name:A10 qty:9(5)') ORDER BY qty;
+----
+7
+42
+100
+
+# gzip, forced explicitly.
+query I
+SELECT qty FROM fixed.main.read_fixed('data/accounts.dat.gz', 'name:A10 qty:9(5)',
+    compression => 'gzip') ORDER BY qty;
+----
+7
+42
+100
+
+# zstd, auto-detected from magic bytes.
+query I
+SELECT qty FROM fixed.main.read_fixed('data/accounts.dat.zst', 'name:A10 qty:9(5)') ORDER BY qty;
+----
+7
+42
+100
+
+# zstd, forced explicitly.
+query I
+SELECT qty FROM fixed.main.read_fixed('data/accounts.dat.zst', 'name:A10 qty:9(5)',
+    compression => 'zstd') ORDER BY qty;
+----
+7
+42
+100
+
+# A plain file with compression => 'none' (and the default auto on a plain file)
+# is passed through unchanged.
+query I
+SELECT qty FROM fixed.main.read_fixed('data/accounts.dat', 'name:A10 qty:9(5)',
+    compression => 'none') ORDER BY qty;
+----
+7
+42
+100
+
+# Forcing the wrong codec on a plain file is a hard error (no partial rows).
+statement error
+SELECT * FROM fixed.main.read_fixed('data/accounts.dat', 'name:A10 qty:9(5)',
+    compression => 'gzip');
+----
+gzip decode
+
+# Unknown compression value is rejected.
+statement error
+SELECT * FROM fixed.main.read_fixed('data/accounts.dat', 'name:A10 qty:9(5)',
+    compression => 'lz4');
+----
+unknown compression
+
 # Fixed-length unframed (no delimiters): two 15-byte records.
 query T
 SELECT name FROM fixed.main.read_fixed('data/accounts_fb.dat', 'name:A10 qty:9(5)', framing => 'fixed')

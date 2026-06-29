@@ -5,7 +5,9 @@ Run from the repo root:  python3 data/generate_fixtures.py
 
 Each fixture is small and deterministic so the SQLLogic expectations are stable.
 """
+import gzip
 import os
+import subprocess
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 
@@ -26,9 +28,18 @@ def write(name: str, data: bytes) -> None:
 
 
 # ASCII newline-delimited: name X(10) + qty 9(5).
+ACCOUNTS = b"JOHN      00042\nJANE      00100\nBOB       00007\n"
+write("accounts.dat", ACCOUNTS)
+
+# Compressed copies of accounts.dat for transparent-decompression tests. They
+# decode byte-for-byte to ACCOUNTS, so the SQL expectations match the plain file.
+# gzip uses a fixed mtime=0 so the bytes are reproducible across runs.
+write("accounts.dat.gz", gzip.compress(ACCOUNTS, mtime=0))
 write(
-    "accounts.dat",
-    b"JOHN      00042\nJANE      00100\nBOB       00007\n",
+    "accounts.dat.zst",
+    subprocess.run(
+        ["zstd", "-q", "-19", "-c"], input=ACCOUNTS, stdout=subprocess.PIPE, check=True
+    ).stdout,
 )
 
 # ASCII fixed-length, no delimiters: two 15-byte records.

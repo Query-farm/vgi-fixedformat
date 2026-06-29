@@ -6,6 +6,7 @@
 //! tree. The `fixedformat-worker` crate adapts those to DuckDB over Arrow. All
 //! correctness lives here and is unit-tested directly.
 
+pub mod compression;
 pub mod copybook;
 pub mod decode;
 pub mod describe;

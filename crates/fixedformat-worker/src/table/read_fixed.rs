@@ -9,6 +9,7 @@ use std::sync::Arc;
 
 use arrow_array::{ArrayRef, RecordBatch};
 use arrow_schema::{Schema, SchemaRef};
+use fixedformat_core::compression::Compression;
 use fixedformat_core::decode::decode_record;
 use fixedformat_core::framing::{records, Framing};
 use fixedformat_core::{Encoding, Layout, Value};
@@ -169,6 +170,14 @@ impl TableFunction for ReadFixed {
                  equal-length records); ignored for the other framings. Defaults to the length \
                  implied by the layout `spec`.",
             ),
+            ArgSpec::const_arg(
+                "compression",
+                -1,
+                "varchar",
+                "Input compression: 'auto' (the default — detect gzip/zstd from the file's magic \
+                 bytes, else read raw), 'none', 'gzip', or 'zstd'. Applies to local and cloud \
+                 paths alike; decompression happens before framing/decoding.",
+            ),
         ]
         .into_iter()
         .chain(options::cloud_arg_specs())
@@ -208,6 +217,7 @@ impl TableFunction for ReadFixed {
         let enc = options::encoding(&params.arguments)?;
         let framing = options::framing(&params.arguments)?;
         let rec_len = record_length(&params.arguments, &layout);
+        let compression = options::compression(&params.arguments)?;
 
         let paths = options::paths(&params.arguments, 0)?;
         let overrides = options::cloud_overrides(&params.arguments);
@@ -227,6 +237,7 @@ impl TableFunction for ReadFixed {
             enc,
             framing,
             rec_len,
+            compression,
             &params.secrets,
             &overrides,
         )?;
@@ -241,12 +252,14 @@ impl TableFunction for ReadFixed {
 /// Read and decode every record across `locations` into rows of column values.
 /// Local locations are read with `std::fs`; remote ones via the object store.
 /// Shared with the `COPY ... FROM` reader (`crate::copy_from`).
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn read_all(
     locations: &[Location],
     layout: &Layout,
     enc: Encoding,
     framing: Framing,
     rec_len: usize,
+    compression: Option<Compression>,
     secrets: &Secrets,
     overrides: &[(String, String)],
 ) -> Result<Vec<Vec<Value>>> {
@@ -262,12 +275,16 @@ pub(crate) fn read_all(
 
     let mut rows = Vec::new();
     for loc in locations {
-        let data = match loc {
+        let raw = match loc {
             Location::Local(path) => {
                 std::fs::read(path).map_err(|e| ve(format!("read {path}: {e}")))?
             }
             Location::Remote(url) => cloud::read_object(url, secrets, overrides)?,
         };
+        // Decompress per the `compression` option; `None` ⇒ auto-detect by magic
+        // bytes (so a plain file is passed through unchanged).
+        let codec = compression.unwrap_or_else(|| Compression::detect(&raw));
+        let data = fixedformat_core::compression::decompress(raw, codec).map_err(ve)?;
         let recs = records(&data, framing, rec_len).map_err(ve)?;
         for rec in recs {
             let pairs = decode_record(layout, rec, enc).map_err(ve)?;

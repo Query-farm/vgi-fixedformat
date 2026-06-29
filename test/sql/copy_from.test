@@ -34,5 +34,28 @@ SELECT count(*) FROM accounts;
 ----
 6
 
+# Transparent decompression also works on the COPY-FROM path: load a gzip file
+# (auto-detected) into a fresh table.
+statement ok
+CREATE TABLE accounts_gz (name VARCHAR, qty INTEGER);
+
+statement ok
+COPY accounts_gz FROM 'data/accounts.dat.gz' (FORMAT 'fixed.fixed', spec 'name:A10 qty:9(5)');
+
+# And a zstd file with the codec forced explicitly.
+statement ok
+COPY accounts_gz FROM 'data/accounts.dat.zst'
+    (FORMAT 'fixed.fixed', spec 'name:A10 qty:9(5)', compression 'zstd');
+
+query TI
+SELECT name, qty FROM accounts_gz ORDER BY qty, name;
+----
+BOB	7
+BOB	7
+JOHN	42
+JOHN	42
+JANE	100
+JANE	100
+
 statement ok
 DETACH fixed;
