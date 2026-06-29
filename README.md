@@ -23,7 +23,7 @@ SELECT unpack_fixed('JOHN      00042', 'name:A10 qty:9(5)');
 ## Quick start
 
 **1. Get the worker binary.** Either download a prebuilt archive from the
-[Releases page](https://github.com/Query-farm/vgi-fixedwidth/releases) for your
+[Releases page](https://github.com/Query-farm/vgi-fixedformat/releases) for your
 platform (`vgi-fixedformat-<version>-<platform>.tar.gz`, where `<platform>` is
 one of `linux_amd64`, `linux_arm64`, `osx_amd64`, `osx_arm64`, `windows_amd64`)
 and unpack the `fixedformat-worker` executable…

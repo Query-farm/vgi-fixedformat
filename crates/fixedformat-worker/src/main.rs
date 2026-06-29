@@ -195,14 +195,14 @@ fn catalog_metadata(name: &str) -> CatalogModel {
             ("vgi.license".to_string(), "MIT".to_string()),
             (
                 "vgi.support_contact".to_string(),
-                "https://github.com/Query-farm/vgi-fixedwidth/issues".to_string(),
+                "https://github.com/Query-farm/vgi-fixedformat/issues".to_string(),
             ),
             (
                 "vgi.support_policy_url".to_string(),
-                "https://github.com/Query-farm/vgi-fixedwidth/blob/main/README.md".to_string(),
+                "https://github.com/Query-farm/vgi-fixedformat/blob/main/README.md".to_string(),
             ),
         ],
-        source_url: Some("https://github.com/Query-farm/vgi-fixedwidth".to_string()),
+        source_url: Some("https://github.com/Query-farm/vgi-fixedformat".to_string()),
         schemas: vec![CatSchema {
             name: "main".to_string(),
             comment: Some(

@@ -8,7 +8,7 @@ edition = "2021"
 rust-version = "1.90"
 license = "MIT"
 authors = ["Query Farm LLC <hello@query.farm>"]
-repository = "https://github.com/Query-farm/vgi-fixedwidth"
+repository = "https://github.com/Query-farm/vgi-fixedformat"
 
 [workspace.dependencies]
 # VGI Rust SDK (worker side). Published on crates.io. 0.9.5 carries the
