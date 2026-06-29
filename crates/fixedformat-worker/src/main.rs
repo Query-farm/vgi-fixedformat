@@ -13,8 +13,10 @@ mod arrow_map;
 mod buffering;
 mod cloud;
 mod copy_from;
+mod copy_to;
 mod meta;
 mod options;
+mod record_writer;
 mod scalar;
 mod table;
 mod value_in;
@@ -284,6 +286,7 @@ fn main() {
     table::register(&mut worker);
     buffering::register(&mut worker);
     copy_from::register(&mut worker);
+    copy_to::register(&mut worker);
     worker.set_catalog(catalog_metadata(&catalog_name));
     worker.run();
 }

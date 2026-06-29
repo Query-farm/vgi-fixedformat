@@ -1,0 +1,126 @@
+# name: test/sql/copy_to.test
+# description: COPY (query) TO '<path>' (FORMAT 'fixed.fixed_out', ...) writes a
+#              relation out to a fixed-width file (the COPY-TO counterpart of
+#              write_fixed). Creates tables in the default catalog, so it does NOT
+#              set search_path (that would target the read-only worker catalog).
+# group: [sql]
+
+require-env VGI_TEST_WORKER
+
+statement ok
+ATTACH 'fixed' AS fixed (TYPE vgi, LOCATION '${VGI_TEST_WORKER}');
+
+# Discovery: the writer is advertised as a distinct 'to' format (the reader is
+# 'fixed.fixed'; the writer uses the '_out' name because FROM/TO are separate
+# formats in the worker SDK).
+query TTT
+SELECT DISTINCT format_name, direction, CAST(ordered AS VARCHAR)
+FROM vgi_copy_formats()
+WHERE format_name = 'fixed.fixed_out';
+----
+fixed.fixed_out	to	false
+
+statement ok
+CREATE TABLE accounts (name VARCHAR, qty INTEGER);
+
+statement ok
+INSERT INTO accounts VALUES ('JOHN', 42), ('JANE', 100), ('BOB', 7);
+
+# --- Basic round-trip: write fixed-width, read it back with read_fixed. ---
+statement ok
+COPY (SELECT name, qty FROM accounts ORDER BY qty)
+TO '__TEST_DIR__/accounts_out.dat' (FORMAT 'fixed.fixed_out', spec 'name:A10 qty:9(5)');
+
+query TI
+SELECT name, qty FROM fixed.main.read_fixed('__TEST_DIR__/accounts_out.dat', 'name:A10 qty:9(5)');
+----
+BOB	7
+JOHN	42
+JANE	100
+
+# The on-disk form is exactly 16 bytes/record (10 name + 5 qty + newline).
+query I
+SELECT length(content) FROM read_text('__TEST_DIR__/accounts_out.dat');
+----
+48
+
+# --- Round-trip back through COPY ... FROM 'fixed.fixed' (the reader). ---
+statement ok
+CREATE TABLE accounts_back (name VARCHAR, qty INTEGER);
+
+statement ok
+COPY accounts_back FROM '__TEST_DIR__/accounts_out.dat' (FORMAT 'fixed.fixed', spec 'name:A10 qty:9(5)');
+
+query I
+SELECT count(*) FROM (SELECT * FROM accounts EXCEPT SELECT * FROM accounts_back);
+----
+0
+
+# --- Non-default framing: 'fixed' (no record separators) → 15 bytes/record. ---
+statement ok
+COPY (SELECT name, qty FROM accounts ORDER BY qty)
+TO '__TEST_DIR__/accounts_fixed.dat'
+(FORMAT 'fixed.fixed_out', spec 'name:A10 qty:9(5)', framing 'fixed');
+
+query TI
+SELECT name, qty FROM fixed.main.read_fixed(
+  '__TEST_DIR__/accounts_fixed.dat', 'name:A10 qty:9(5)',
+  framing => 'fixed', record_length => 15);
+----
+BOB	7
+JOHN	42
+JANE	100
+
+# --- Empty input still writes a (zero-byte) destination file, no crash. ---
+statement ok
+COPY (SELECT name, qty FROM accounts WHERE false)
+TO '__TEST_DIR__/empty_out.dat' (FORMAT 'fixed.fixed_out', spec 'name:A10 qty:9(5)');
+
+query I
+SELECT count(*) FROM read_text('__TEST_DIR__/empty_out.dat')
+WHERE content <> '';
+----
+0
+
+# --- Parallel correctness: a larger source fans out across sink threads; all
+#     rows must survive the shard -> combine merge. ---
+statement ok
+SET threads = 4;
+
+statement ok
+SET preserve_insertion_order = false;
+
+statement ok
+CREATE TABLE big AS SELECT i AS id FROM range(20000) t(i);
+
+statement ok
+COPY (SELECT id FROM big) TO '__TEST_DIR__/big_out.dat'
+(FORMAT 'fixed.fixed_out', spec 'id:9(7)');
+
+query II
+SELECT count(*), count(DISTINCT id)
+FROM fixed.main.read_fixed('__TEST_DIR__/big_out.dat', 'id:9(7)');
+----
+20000	20000
+
+# Sum is order-independent, so it survives the unordered parallel sink.
+query I
+SELECT sum(id) FROM fixed.main.read_fixed('__TEST_DIR__/big_out.dat', 'id:9(7)');
+----
+199990000
+
+# --- Error: the required 'spec' option is missing. ---
+statement error
+COPY (SELECT name, qty FROM accounts) TO '__TEST_DIR__/bad.dat' (FORMAT 'fixed.fixed_out');
+----
+spec
+
+# --- Error: an unknown option is rejected by the extension at bind. ---
+statement error
+COPY (SELECT name, qty FROM accounts) TO '__TEST_DIR__/bad.dat'
+(FORMAT 'fixed.fixed_out', spec 'name:A10 qty:9(5)', bogus 'x');
+----
+bogus
+
+statement ok
+DETACH fixed;

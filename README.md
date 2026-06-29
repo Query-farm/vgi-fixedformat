@@ -97,6 +97,37 @@ SELECT * FROM write_fixed((FROM my_table), '/tmp/out.dat', 'name:A10 qty:9(5)');
 
 ---
 
+## `COPY … FROM` / `COPY … TO`
+
+The worker also plugs a fixed-width format into DuckDB's `COPY` statement, so you
+can load and unload tables without the `read_fixed` / `write_fixed` calls. The
+format name is **catalog-qualified** by the `ATTACH` name (`fixed` below). The
+spec and other settings are passed as `COPY` options; the path comes from the
+statement itself.
+
+```sql
+-- Load a fixed-width file straight into a table (reader: 'fixed.fixed').
+CREATE TABLE accounts (name VARCHAR, qty INTEGER);
+COPY accounts FROM 'accounts.dat' (FORMAT 'fixed.fixed', spec 'name:A10 qty:9(5)');
+
+-- Write a query/table out to a fixed-width file (writer: 'fixed.fixed_out').
+COPY (SELECT name, qty FROM accounts)
+  TO 'out.dat' (FORMAT 'fixed.fixed_out', spec 'name:A10 qty:9(5)');
+```
+
+Options mirror the table functions: `spec` (required), `format`, `encoding`,
+`framing`, plus `endpoint`/`region`/`url_style`/`use_ssl` for `s3://` paths. On
+`COPY … FROM`, decoded columns map to the target table's columns **by position**;
+on `COPY … TO`, input columns map to layout fields **by name**. The reader and
+writer use **different** format names (`fixed.fixed` vs `fixed.fixed_out`) because
+the VGI worker SDK advertises each direction as a separate format.
+
+> Cloud note: `COPY … FROM` resolves `CREATE SECRET` credentials per path;
+> `COPY … TO` does **not** forward DuckDB secrets — use named overrides / ambient
+> credentials, or `write_fixed`, for secret-backed cloud writes.
+
+---
+
 ## Spec formats
 
 A *spec* describes the record layout. Three formats are accepted and

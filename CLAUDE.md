@@ -38,7 +38,25 @@ needed.
   number of columns in the same order. `path` may be local or `s3://`/`http(s)://`
   (credentials via `CREATE SECRET`, scoped per path — `secret_lookups` is forwarded
   from the SDK's `CopyFromTable`). COPY options are named (the source path comes from
-  the COPY statement, not an option). `COPY ... TO` is not implemented.
+  the COPY statement, not an option).
+- `COPY (query|table) TO '<path>' (FORMAT 'fixed.fixed_out', spec '<layout>' [, format,
+  encoding, framing, endpoint, region, url_style, use_ssl])` — write a relation out to a
+  fixed-width file (the COPY-TO counterpart of `write_fixed`, in
+  `crates/fixedformat-worker/src/copy_to.rs`). The writer uses a **distinct** format
+  name `'<attach-name>.fixed_out'` (e.g. `'fixed.fixed_out'`) because the VGI worker SDK
+  advertises FROM and TO as separate formats (and the extension registers one
+  `CopyFunction` per format name). Each input column is matched to a layout field **by
+  name** (same as `write_fixed`), encoded + framed, and written to `<path>`; DuckDB
+  reports the row count. Mechanically it is a **buffered (Sink+Combine) function with no
+  Source phase**: `write()` buffers each batch into `execution_id`-scoped
+  cross-process storage; `close()` (DuckDB's once-only finalize) drains the shards and
+  performs the terminal write. The Arrow→framed-bytes encode logic is shared with
+  `write_fixed` via `crates/fixedformat-worker/src/record_writer.rs`. Local destinations
+  are fully supported; an `s3://` destination works via the named overrides
+  (`endpoint`/`region`/`url_style`/`use_ssl`) or ambient credentials, but `CREATE SECRET`
+  credentials are **not** forwarded on the COPY-TO path (the SDK's `CopyToFunction` has
+  no secret-bind hook) — use `write_fixed` for secret-backed cloud writes. COPY options
+  are named (the destination path comes from the COPY statement, not an option).
 
 ### Cloud paths (S3-compatible + HTTP)
 

@@ -9,9 +9,6 @@ use std::sync::Arc;
 
 use arrow_array::{Int64Array, RecordBatch};
 use arrow_schema::{DataType, Field, Schema};
-use fixedformat_core::encode::encode_record;
-use fixedformat_core::framing::Framing;
-use fixedformat_core::{Encoding, Layout, Value};
 use vgi::buffering::{BufferingParams, TableBufferingFunction};
 use vgi::function::{ArgSpec, BindParams, BindResponse, FunctionMetadata};
 use vgi::ipc;
@@ -21,7 +18,7 @@ use vgi_rpc::{OutputCollector, Result, RpcError};
 
 use crate::cloud::{self, Location};
 use crate::options;
-use crate::value_in::value_at;
+use crate::record_writer::{assemble, encode_batch};
 
 const NS: &[u8] = b"write_fixed";
 
@@ -233,65 +230,6 @@ impl TableBufferingFunction for WriteFixed {
         .map_err(|e| RpcError::runtime_error(e.to_string()))?;
         Ok(Box::new(OneShot { batch: Some(batch) }))
     }
-}
-
-/// Encode every row of a relation batch into record bytes.
-fn encode_batch(
-    batch: &RecordBatch,
-    layout: &Layout,
-    enc: Encoding,
-    out: &mut Vec<Vec<u8>>,
-) -> Result<()> {
-    let schema = batch.schema();
-    for row in 0..batch.num_rows() {
-        let mut pairs: Vec<(String, Value)> = Vec::with_capacity(batch.num_columns());
-        for (c, field) in schema.fields().iter().enumerate() {
-            pairs.push((field.name().clone(), value_at(batch.column(c), row)?));
-        }
-        out.push(encode_record(layout, &pairs, enc).map_err(ve)?);
-    }
-    Ok(())
-}
-
-/// Frame the encoded records into the final file body.
-fn assemble(records: &[Vec<u8>], framing: Framing) -> Vec<u8> {
-    let mut body = Vec::new();
-    match framing {
-        Framing::Newline => {
-            for rec in records {
-                body.extend_from_slice(rec);
-                body.push(b'\n');
-            }
-        }
-        Framing::Fixed => {
-            for rec in records {
-                body.extend_from_slice(rec);
-            }
-        }
-        Framing::Rdw => {
-            for rec in records {
-                push_descriptor(&mut body, rec.len() + 4);
-                body.extend_from_slice(rec);
-            }
-        }
-        Framing::RdwBlocked => {
-            // One block wrapping all RDW-framed records.
-            let block_len: usize = 4 + records.iter().map(|r| r.len() + 4).sum::<usize>();
-            push_descriptor(&mut body, block_len);
-            for rec in records {
-                push_descriptor(&mut body, rec.len() + 4);
-                body.extend_from_slice(rec);
-            }
-        }
-    }
-    body
-}
-
-/// Write a 4-byte descriptor word (big-endian length, then two zero bytes).
-fn push_descriptor(body: &mut Vec<u8>, len: usize) {
-    let len = len as u16;
-    body.extend_from_slice(&len.to_be_bytes());
-    body.extend_from_slice(&[0, 0]);
 }
 
 /// Emits a single precomputed batch, then EOF.
