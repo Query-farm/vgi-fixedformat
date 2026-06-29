@@ -22,6 +22,13 @@ pub enum Value {
     List(Vec<Value>),
     /// STRUCT (group item / folded REDEFINES).
     Struct(Vec<(String, Value)>),
+    /// DATE — days since the Unix epoch (1970-01-01), matching Arrow `Date32`.
+    Date(i32),
+    /// TIME — microseconds since midnight, matching Arrow `Time64(µs)`.
+    Time(i64),
+    /// TIMESTAMP — microseconds since the Unix epoch, matching Arrow
+    /// `Timestamp(µs)` (no timezone).
+    Timestamp(i64),
 }
 
 impl Value {

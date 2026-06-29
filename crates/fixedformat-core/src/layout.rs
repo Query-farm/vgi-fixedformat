@@ -106,6 +106,21 @@ pub enum FieldKind {
     },
     /// Group item: a nested set of fields rendered as a STRUCT column.
     Group(Vec<Field>),
+    /// Temporal display field: the `width` bytes are transcoded to ASCII and
+    /// parsed/formatted with the strftime-style `format` (e.g. `%Y%m%d`) into a
+    /// DATE / TIME / TIMESTAMP per `kind`.
+    DateTime { kind: DateTimeKind, format: String },
+}
+
+/// Which temporal type a [`FieldKind::DateTime`] field decodes to.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DateTimeKind {
+    /// DuckDB `DATE` — Arrow `Date32`, days since the Unix epoch.
+    Date,
+    /// DuckDB `TIME` — Arrow `Time64(µs)`, microseconds since midnight.
+    Time,
+    /// DuckDB `TIMESTAMP` — Arrow `Timestamp(µs)`, microseconds since the epoch.
+    Timestamp,
 }
 
 /// Text justification / fill side.

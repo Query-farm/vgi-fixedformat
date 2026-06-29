@@ -110,11 +110,16 @@ SELECT * FROM fixed.main.read_fixed('s3://bucket/x.dat', 'A10 N',
   `< > ! = @` byte-order, plus display PIC tokens `9(5)` / `S9(7)V99` / `X(10)`.
   Count is a width for string/hex/pad codes, a repeat (→ LIST) for numerics.
 - **json** — `[{"name","type","width"|"digits","scale","signed","endian","occurs",
-  "justify","pad","sign"}, ...]` (or `{"fields":[...]}`). A field may instead carry
+  "justify","pad","sign","format"}, ...]` (or `{"fields":[...]}`). A field may instead carry
   a nested `"fields":[...]` array → it becomes a **group** (STRUCT; `type` optional),
   and with `"occurs"` → a LIST of STRUCT. So nested/repeating sub-records are
   expressible without a copybook (`jsonspec::layout_fields` recurses; children get
   group-relative offsets, same contract as copybook's `layout_nodes`).
+  Temporal types `"date"` / `"time"` / `"datetime"`(=`"timestamp"`) parse the
+  `width` bytes of display text with a required strftime `"format"` (e.g.
+  `{"type":"date","width":8,"format":"%Y%m%d"}`) into a DuckDB `DATE` / `TIME` /
+  `TIMESTAMP`. (Template/copybook have no date token — COBOL dates are plain
+  numerics; use JSON.)
 - **copybook** — COBOL: nested groups (→ STRUCT), `PIC X/A/9/S/V`, `USAGE
   COMP-3`/`COMP`/`BINARY`, `OCCURS n` (→ LIST), `OCCURS [m TO] n DEPENDING ON ctrl`
   (variable-length table → LIST sized by the runtime value of `ctrl`), `REDEFINES`
@@ -131,7 +136,9 @@ Variable layouts can't use `fixed` framing (the read path errors — use
 `newline`/`rdw`); the controller must be decoded **before** the table.
 
 Types: decimals (COMP-3/zoned/implied-point) → `DECIMAL(p,s)`, ints → `BIGINT`,
-floats → `REAL`/`DOUBLE`, text/hex → `VARCHAR`, `?` → `BOOLEAN`. Encodings:
+floats → `REAL`/`DOUBLE`, text/hex → `VARCHAR`, `?` → `BOOLEAN`, JSON
+`date`/`time`/`datetime` → `DATE`/`TIME`/`TIMESTAMP` (parsed via a strftime
+`format` in `fixedformat-core/src/datetime.rs`, using `chrono`). Encodings:
 `ascii` (default) / `ebcdic` (CP037). Framing: `newline` (default) / `fixed` /
 `rdw` / `rdw_blocked`.
 
@@ -164,9 +171,9 @@ whole file before emitting".
 - `crates/fixedformat-core` — pure codecs, **no Arrow/VGI deps** (`unsafe`
   forbidden). The Layout IR (`layout.rs`) + three parsers (`template`, `jsonspec`,
   `copybook`) + decode/encode + `packed` (COMP-3) / `zoned` / `ebcdic` (CP037
-  tables) / `framing` (slice splitter) / `stream` (streaming framer +
-  `decompress_reader`) / `compression` (gzip/zstd). All correctness lives here,
-  unit-tested directly.
+  tables) / `datetime` (DATE/TIME/TIMESTAMP via `chrono`) / `framing` (slice
+  splitter) / `stream` (streaming framer + `decompress_reader`) / `compression`
+  (gzip/zstd). All correctness lives here, unit-tested directly.
 - `crates/fixedformat-worker` — thin Arrow/VGI adapter: `arrow_map.rs` (Layout →
   Arrow fields, Value → arrays incl. Decimal128/List/Struct), `value_in.rs` (Arrow
   → Value for pack/write), `reader.rs` (streaming byte sources +

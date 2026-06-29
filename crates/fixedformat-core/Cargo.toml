@@ -10,6 +10,9 @@ description = "Pure-compute fixed-width / Perl-unpack / COBOL-copybook codecs fo
 [dependencies]
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+# DATE / TIME / TIMESTAMP display-field parsing & formatting via strftime
+# patterns. Pure compute (no I/O), so it belongs in core with the other codecs.
+chrono = { version = "0.4", default-features = false, features = ["std"] }
 # Transparent input decompression (gzip / zstd). Pure bytes-in/bytes-out, so it
 # lives in core with the other codecs. zstd 0.13 matches the version already in
 # the tree via vgi-rpc.

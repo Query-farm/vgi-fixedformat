@@ -1,0 +1,79 @@
+# name: test/sql/datetime.test
+# description: DATE / TIME / TIMESTAMP display fields — JSON spec, strftime
+#              formats, typeof, and pack/unpack round-trips.
+# group: [sql]
+
+require-env VGI_TEST_WORKER
+
+statement ok
+ATTACH 'fixed' AS fixed (TYPE vgi, LOCATION '${VGI_TEST_WORKER}');
+
+statement ok
+SET search_path='fixed.main';
+
+# A YYYYMMDD field decodes to a real DATE.
+query T
+SELECT (unpack_fixed('20240131', '[{"name":"d","type":"date","width":8,"format":"%Y%m%d"}]')).d;
+----
+2024-01-31
+
+# ...and its DuckDB type is DATE, not VARCHAR/DECIMAL.
+query T
+SELECT typeof((unpack_fixed('20240131', '[{"name":"d","type":"date","width":8,"format":"%Y%m%d"}]')).d);
+----
+DATE
+
+# Date with separators in the format.
+query T
+SELECT (unpack_fixed('2024-01-31', '[{"name":"d","type":"date","width":10,"format":"%Y-%m-%d"}]')).d;
+----
+2024-01-31
+
+# TIME field (HHMMSS).
+query T
+SELECT (unpack_fixed('123045', '[{"name":"t","type":"time","width":6,"format":"%H%M%S"}]')).t;
+----
+12:30:45
+
+query T
+SELECT typeof((unpack_fixed('123045', '[{"name":"t","type":"time","width":6,"format":"%H%M%S"}]')).t);
+----
+TIME
+
+# TIMESTAMP field (YYYYMMDDHHMMSS).
+query T
+SELECT (unpack_fixed('20240131123045', '[{"name":"ts","type":"timestamp","width":14,"format":"%Y%m%d%H%M%S"}]')).ts;
+----
+2024-01-31 12:30:45
+
+query T
+SELECT typeof((unpack_fixed('20240131123045', '[{"name":"ts","type":"timestamp","width":14,"format":"%Y%m%d%H%M%S"}]')).ts);
+----
+TIMESTAMP
+
+# Round-trip: pack a DATE back into its YYYYMMDD bytes.
+query I
+SELECT (pack_fixed({'d': DATE '2024-01-31'}, '[{"name":"d","type":"date","width":8,"format":"%Y%m%d"}]')
+        = '20240131'::BLOB)::INT;
+----
+1
+
+# Round-trip: pack a TIMESTAMP back into its bytes.
+query I
+SELECT (pack_fixed({'ts': TIMESTAMP '2024-01-31 12:30:45'},
+                   '[{"name":"ts","type":"timestamp","width":14,"format":"%Y%m%d%H%M%S"}]')
+        = '20240131123045'::BLOB)::INT;
+----
+1
+
+# describe_fixed labels the kind and SQL type.
+query TT
+SELECT kind, sql_type
+FROM describe_fixed('[{"name":"d","type":"date","width":8,"format":"%Y%m%d"}]');
+----
+date	DATE
+
+# A bad date is a clean error (fails the statement).
+statement error
+SELECT (unpack_fixed('2024XX31', '[{"name":"d","type":"date","width":8,"format":"%Y%m%d"}]')).d;
+----
