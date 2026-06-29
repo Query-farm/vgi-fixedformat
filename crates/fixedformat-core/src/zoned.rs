@@ -18,13 +18,20 @@ pub fn decode(bytes: &[u8]) -> Result<i128> {
     if bytes.is_empty() {
         return Err(Error("zoned field is empty".into()));
     }
+    // Checked: a field wider than ~38 digits would overflow i128 and, with
+    // overflow-checks off in release, silently wrap to a wrong value.
+    let push = |value: i128, d: u8| -> Result<i128> {
+        value
+            .checked_mul(10)
+            .and_then(|v| v.checked_add(d as i128))
+            .ok_or_else(|| Error("zoned value overflows a 128-bit decimal".into()))
+    };
     let mut value: i128 = 0;
     for &b in &bytes[..bytes.len() - 1] {
-        let d = digit(b)?;
-        value = value * 10 + d as i128;
+        value = push(value, digit(b)?)?;
     }
     let (last_digit, negative) = decode_overpunch(bytes[bytes.len() - 1])?;
-    value = value * 10 + last_digit as i128;
+    value = push(value, last_digit)?;
     Ok(if negative { -value } else { value })
 }
 

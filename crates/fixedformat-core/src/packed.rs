@@ -31,7 +31,12 @@ pub fn decode(bytes: &[u8]) -> Result<i128> {
         if nib > 9 {
             return Err(Error(format!("invalid comp-3 digit nibble {nib:#x}")));
         }
-        value = value * 10 + nib as i128;
+        // Checked: a field wider than ~38 digits would overflow i128 and, with
+        // overflow-checks off in release, silently wrap to a wrong value.
+        value = value
+            .checked_mul(10)
+            .and_then(|v| v.checked_add(nib as i128))
+            .ok_or_else(|| Error("comp-3 value overflows a 128-bit decimal".into()))?;
     }
     let sign_nibble = bytes[bytes.len() - 1] & 0x0F;
     let negative = match sign_nibble {
@@ -87,6 +92,15 @@ pub fn encode(value: i128, width: usize, signed: bool) -> Result<Vec<u8>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn decode_overflows_cleanly_on_too_many_digits() {
+        // 20 bytes of 0x99 = 39 nines + sign → exceeds i128; must error, not wrap.
+        let mut bytes = vec![0x99u8; 19];
+        bytes.push(0x9C); // last byte: digit 9 + positive sign nibble
+        let err = decode(&bytes).unwrap_err();
+        assert!(err.0.contains("overflows"), "got: {}", err.0);
+    }
 
     #[test]
     fn byte_widths() {

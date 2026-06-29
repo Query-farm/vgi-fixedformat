@@ -55,8 +55,13 @@ fn base_type(f: &Field) -> Result<DataType> {
         FieldKind::Decimal {
             precision, scale, ..
         } => {
-            let p = (*precision).clamp(1, MAX_DECIMAL_PRECISION);
-            DataType::Decimal128(p, *scale as i8)
+            if *precision > MAX_DECIMAL_PRECISION {
+                return Err(rt(format!(
+                    "DECIMAL precision {precision} exceeds the maximum of {MAX_DECIMAL_PRECISION} \
+                     (DuckDB/Arrow Decimal128 limit) — reduce the field's digit count"
+                )));
+            }
+            DataType::Decimal128((*precision).max(1), *scale as i8)
         }
         FieldKind::Group(children) => {
             let mut fields = Vec::new();
