@@ -37,7 +37,7 @@ impl TableFunction for DescribeFixed {
     }
 
     fn metadata(&self) -> FunctionMetadata {
-        let tags = crate::meta::object_tags(
+        let mut tags = crate::meta::object_tags(
             "Describe Fixed-Width Spec",
             "Introspect a fixed-width layout `spec` without reading any data: returns one row per \
              field (group items and their children included) describing how the spec resolves. \
@@ -57,6 +57,29 @@ impl TableFunction for DescribeFixed {
             "describe, introspect, layout, schema, fields, offsets, copybook, template, JSON spec, \
              debug spec, fixed-width, OCCURS, DEPENDING ON",
         );
+        tags.push((
+            "vgi.result_columns_md".into(),
+            "A **fixed** result schema — one row per field (group items and their children \
+             included):\n\n\
+             | column | type | description |\n\
+             |---|---|---|\n\
+             | `path` | VARCHAR | Dotted field path, e.g. `item.sku`. |\n\
+             | `depth` | BIGINT | Nesting level (0 at the top). |\n\
+             | `kind` | VARCHAR | Codec label, e.g. `text`, `int32 LE`, `comp-3`. |\n\
+             | `sql_type` | VARCHAR | The DuckDB column type the field maps to, e.g. `VARCHAR`, \
+             `DECIMAL(9,2)`, `STRUCT`, `BIGINT[]`. |\n\
+             | `byte_offset` | BIGINT | Static byte position within the record. |\n\
+             | `width` | BIGINT | Per-occurrence width in bytes. |\n\
+             | `occurs` | BIGINT | Declared repeat / OCCURS maximum, else NULL. |\n\
+             | `depending_on` | VARCHAR | Controlling field for `OCCURS … DEPENDING ON`, else \
+             NULL. |\n\n\
+             **Example usage:**\n\n\
+             ```sql\n\
+             SELECT path, sql_type, byte_offset, width\n\
+             FROM fixed.main.describe_fixed('name:A10 qty:9(5)');\n\
+             ```"
+            .into(),
+        ));
         FunctionMetadata {
             description: "Describe a fixed-width layout spec (fields, types, offsets) without \
                           reading data"

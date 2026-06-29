@@ -69,16 +69,42 @@ impl CopyToFunction for CopyToFixed {
     }
 
     fn metadata(&self) -> FunctionMetadata {
+        let mut tags = crate::meta::object_tags(
+            "Write Fixed-Width File (COPY TO)",
+            "Write a query or table out to a fixed-width / flat-file / COBOL-copybook file — the \
+             COPY-TO counterpart of write_fixed. Invoked via `COPY (<query>|<table>) TO '<path>' \
+             (FORMAT 'fixed.fixed_out', spec '<layout>', …)`, not called directly. The writer uses \
+             a DISTINCT format name 'fixed.fixed_out' (catalog-qualified by the ATTACH name) \
+             because the VGI SDK advertises FROM and TO as separate formats. Each input column is \
+             matched to a layout field BY NAME, encoded to record bytes per the `spec` option (a \
+             Perl/Python `unpack` template, a JSON field list, or a COBOL copybook; auto-detected \
+             unless `format` is given), framed per `framing`, and written to `<path>` (overwritten \
+             if it exists). Options are named: `spec` (required), `format`, `encoding` \
+             ('ascii'/'ebcdic'), `framing` ('newline'/'fixed'/'rdw'/'rdw_blocked'), plus \
+             `endpoint`/`region`/`url_style`/`use_ssl` for `s3://` destinations. NOTE: CREATE \
+             SECRET credentials are NOT forwarded on the COPY-TO path — use named S3 overrides, \
+             ambient credentials, or write_fixed for secret-backed cloud writes.",
+            "Write a relation to a fixed-width file: `COPY (<query>|<table>) TO '<path>' (FORMAT \
+             'fixed.fixed_out', spec '<layout>')`. Input columns map to layout fields by name. \
+             Named options: `spec` (required), `format`, `encoding`, `framing`, and S3 overrides. \
+             The COPY-TO counterpart of `write_fixed`.",
+            "copy to, write, export, fixed-width file, flat file, emit, copybook, mainframe, \
+             EBCDIC, RDW, COMP-3, S3, unload, bulk export",
+        );
+        tags.push((
+            "vgi.result_columns_md".into(),
+            "Returns **no result set** — this is a `COPY … TO` writer. The COPY source rows are \
+             encoded to fixed-width records and written to `<path>` (overwritten if it exists); \
+             DuckDB reports the number of rows written as the statement's `Count`. Each input \
+             column is matched to a layout field **by name** before encoding."
+                .into(),
+        ));
         FunctionMetadata {
             description:
                 "Write the COPY source out to a fixed-width / flat-file / COBOL-copybook file \
                  (the COPY-TO counterpart of write_fixed)"
                     .into(),
-            tags: vec![
-                ("domain".into(), "data-engineering".into()),
-                ("category".into(), "copy_to".into()),
-                ("topic".into(), "fixed-width-records".into()),
-            ],
+            tags,
             ..Default::default()
         }
     }

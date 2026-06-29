@@ -55,16 +55,45 @@ impl CopyFromFunction for CopyFixed {
     }
 
     fn metadata(&self) -> FunctionMetadata {
+        let mut tags = crate::meta::object_tags(
+            "Load Fixed-Width File (COPY FROM)",
+            "Load a fixed-width / flat-file / COBOL-copybook file straight into a DuckDB table — \
+             the COPY-FROM counterpart of read_fixed. Invoked via `COPY <table> FROM '<path>' \
+             (FORMAT 'fixed.fixed', spec '<layout>', …)`, not called directly. The format name is \
+             catalog-qualified by the ATTACH name (e.g. 'fixed.fixed'). Each record is decoded per \
+             the `spec` option (a Perl/Python `unpack` template, a JSON field list, or a COBOL \
+             copybook; auto-detected unless `format` is given) and the decoded columns are assigned \
+             to the COPY target table's columns BY POSITION and cast to each target column's type, \
+             so the spec must produce the same number of columns in the same order. Options are \
+             named: `spec` (required), `format`, `encoding` ('ascii'/'ebcdic'), `framing` \
+             ('newline'/'fixed'/'rdw'/'rdw_blocked'), `record_length` (bytes, 'fixed' framing only), \
+             plus `endpoint`/`region`/`url_style`/`use_ssl` for `s3://` sources. `path` may be \
+             local, `s3://`, or `http(s)://`. Use it to ingest mainframe or legacy flat-file data \
+             into an existing table without a read_fixed call.",
+            "Load a fixed-width file into a table: `COPY <table> FROM '<path>' (FORMAT \
+             'fixed.fixed', spec '<layout>')`. Decoded columns map to the target table's columns by \
+             position (cast to each type). Named options: `spec` (required), `format`, `encoding`, \
+             `framing`, `record_length`, and S3 overrides. The COPY-FROM counterpart of \
+             `read_fixed`.",
+            "copy from, load, fixed-width file, flat file, ingest, copybook, mainframe, EBCDIC, \
+             RDW, COMP-3, S3, table load, bulk load",
+        );
+        tags.push((
+            "vgi.result_columns_md".into(),
+            "Returns **no result set** — this is a `COPY … FROM` loader. Rows decoded from the \
+             file are inserted into the COPY **target table**, and DuckDB reports the number of \
+             rows loaded as the statement's `Count`. The loaded columns are the target table's own \
+             columns: each decoded field is mapped to a target column **by position** and cast to \
+             that column's type, so the `spec` must produce the same number of columns in the same \
+             order as the table."
+                .into(),
+        ));
         FunctionMetadata {
             description:
                 "Read a fixed-width / flat-file / COBOL-copybook file into the COPY target table \
                  (the COPY-FROM counterpart of read_fixed)"
                     .into(),
-            tags: vec![
-                ("domain".into(), "data-engineering".into()),
-                ("category".into(), "copy_from".into()),
-                ("topic".into(), "fixed-width-records".into()),
-            ],
+            tags,
             ..Default::default()
         }
     }
