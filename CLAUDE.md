@@ -107,7 +107,10 @@ SELECT * FROM fixed.main.read_fixed('s3://bucket/x.dat', 'A10 N',
 
 - **template** — Perl/Python codes: `A`/`a`/`Z` strings, `c C s S l L i I q Q`
   ints, `n N v V` BE/LE aliases, `e f d` floats, `H h` hex, `?` bool, `x` pad,
-  `< > ! = @` byte-order, plus display PIC tokens `9(5)` / `S9(7)V99` / `X(10)`.
+  `< > ! = @` byte-order, plus display PIC tokens `9(5)` / `S9(7)V99` / `X(10)`
+  and **edited** PIC tokens (`9(4).99`, `9(5)CR`) — see copybook below. An edited
+  template token must begin with a `9`/`S9` digit (a leading `Z`/`$`/`*` collides
+  with the `Z`/string codes), so `Z`/`$`/`*`-leading masks need the copybook form.
   Count is a width for string/hex/pad codes, a repeat (→ LIST) for numerics.
 - **json** — `[{"name","type","width"|"digits","scale","signed","endian","occurs",
   "justify","pad","sign","format"}, ...]` (or `{"fields":[...]}`). A field may instead carry
@@ -123,7 +126,22 @@ SELECT * FROM fixed.main.read_fixed('s3://bucket/x.dat', 'A10 N',
 - **copybook** — COBOL: nested groups (→ STRUCT), `PIC X/A/9/S/V`, `USAGE
   COMP-3`/`COMP`/`BINARY`, `OCCURS n` (→ LIST), `OCCURS [m TO] n DEPENDING ON ctrl`
   (variable-length table → LIST sized by the runtime value of `ctrl`), `REDEFINES`
-  (→ folded STRUCT), `SIGN LEADING/TRAILING [SEPARATE]`.
+  (→ folded STRUCT), `SIGN LEADING/TRAILING [SEPARATE]`, and **edited** (print-image)
+  PICs.
+
+**Edited (PICTURE-editing) numeric PICs** — `ZZ,ZZ9.99`, `$$$,$$9.99`, `9(4).99`,
+`9(5)CR`, `***1.50`, `---,--9` — decode to the underlying `DECIMAL(p,s)` by
+stripping the editing (`parse_pic` in `copybook.rs` recognizes any of
+`Z * , . / B 0 $ + - CR DB` as editing and emits the `FieldKind::Edited` kind; a
+plain `9(5)` / `S9(7)V99` stays a numeric/zoned/COMP-3 as before). Supported digit
+positions `9`/`Z` (zero-suppress → space)/`*` (check protection → `*`); insertions
+`, . / B 0`; currency `$`; sign `+`/`-`/`CR`/`DB`; floating runs `$$$`/`+++`/`---`
+contribute `count-1` digit positions. **Decode (read) is complete** for all these.
+**Encode (write)** in `edited.rs` covers the **fixed** masks (`9`/`Z`/`*`,
+insertions, a single fixed `$`, leading/trailing `+`/`-`, trailing `CR`/`DB`) and
+round-trips them; a **floating** currency/sign run (`$$`, `++`, `--`) is rejected
+with a clear "not supported for write" error (use a plain numeric PIC for output).
+Codec lives in `fixedformat-core/src/edited.rs` (`decode`/`encode`).
 
 `OCCURS … DEPENDING ON` makes the record **variable-length**: such a table reserves
 **zero** static footprint, so fields after it shift by the actual body size.
@@ -170,10 +188,11 @@ whole file before emitting".
 
 - `crates/fixedformat-core` — pure codecs, **no Arrow/VGI deps** (`unsafe`
   forbidden). The Layout IR (`layout.rs`) + three parsers (`template`, `jsonspec`,
-  `copybook`) + decode/encode + `packed` (COMP-3) / `zoned` / `ebcdic` (CP037
-  tables) / `datetime` (DATE/TIME/TIMESTAMP via `chrono`) / `framing` (slice
-  splitter) / `stream` (streaming framer + `decompress_reader`) / `compression`
-  (gzip/zstd). All correctness lives here, unit-tested directly.
+  `copybook`) + decode/encode + `packed` (COMP-3) / `zoned` / `edited`
+  (PICTURE-editing print-image numerics) / `datetime` (DATE/TIME/TIMESTAMP via
+  `chrono`) / `ebcdic` (CP037 tables) / `framing` (slice splitter) / `stream`
+  (streaming framer + `decompress_reader`) / `compression` (gzip/zstd). All
+  correctness lives here, unit-tested directly.
 - `crates/fixedformat-worker` — thin Arrow/VGI adapter: `arrow_map.rs` (Layout →
   Arrow fields, Value → arrays incl. Decimal128/List/Struct), `value_in.rs` (Arrow
   → Value for pack/write), `reader.rs` (streaming byte sources +

@@ -98,6 +98,7 @@ fn kind_label(f: &Field) -> String {
             NumRepr::Zoned => "zoned".into(),
             NumRepr::Display => "decimal (display)".into(),
         },
+        FieldKind::Edited { .. } => "edited".into(),
         FieldKind::Group(_) => "group".into(),
         FieldKind::DateTime { kind, .. } => match kind {
             DateTimeKind::Date => "date".into(),
@@ -126,6 +127,9 @@ fn base_sql_type(f: &Field) -> String {
         FieldKind::Bool => "BOOLEAN".into(),
         FieldKind::Pad { .. } => "NULL".into(),
         FieldKind::Decimal {
+            precision, scale, ..
+        }
+        | FieldKind::Edited {
             precision, scale, ..
         } => {
             // Mirror arrow_map's DuckDB precision cap (38).

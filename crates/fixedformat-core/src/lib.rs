@@ -12,6 +12,7 @@ pub mod datetime;
 pub mod decode;
 pub mod describe;
 pub mod ebcdic;
+pub mod edited;
 pub mod encode;
 pub mod framing;
 pub mod jsonspec;

@@ -77,7 +77,7 @@ fn tokenize(src: &str) -> Result<Vec<Raw>> {
     }
 
     let mut stmts = Vec::new();
-    for raw in cleaned.split('.') {
+    for raw in split_statements(&cleaned) {
         let toks: Vec<String> = raw.split_whitespace().map(|s| s.to_string()).collect();
         if toks.is_empty() {
             continue;
@@ -87,6 +87,30 @@ fn tokenize(src: &str) -> Result<Vec<Raw>> {
         }
     }
     Ok(stmts)
+}
+
+/// Split cleaned copybook text into statements on **separator periods** — a `.`
+/// followed by whitespace or end of input. A `.` that is the **decimal point of
+/// an edited PIC** (e.g. `ZZ,ZZ9.99`) is followed by a digit, so it is kept in
+/// the token rather than ending the statement. (COBOL disambiguates a separator
+/// period from a decimal point exactly this way: a separator period is followed
+/// by a space.) Since `tokenize` appends a space after every source line, the
+/// terminal period of the last statement is always followed by whitespace.
+fn split_statements(s: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut cur = String::new();
+    let chars: Vec<char> = s.chars().collect();
+    for (i, &c) in chars.iter().enumerate() {
+        if c == '.' && chars.get(i + 1).map(|n| n.is_whitespace()).unwrap_or(true) {
+            out.push(std::mem::take(&mut cur));
+        } else {
+            cur.push(c);
+        }
+    }
+    if !cur.trim().is_empty() {
+        out.push(cur);
+    }
+    out
 }
 
 fn parse_stmt(toks: &[String]) -> Result<Option<Raw>> {
@@ -434,6 +458,22 @@ pub fn parse_pic(pic: &str, usage: Usage, sign: Option<SignKind>) -> Result<(Fie
         ));
     }
 
+    // An edited PIC (zero-suppression `Z`/`*`, insertions `, . / B 0`, currency
+    // `$`, sign `+`/`-`/`CR`/`DB`) decodes to a DECIMAL by stripping the editing.
+    // Editing only applies to DISPLAY items; COMP/COMP-3 are never edited.
+    if p.edited && usage == Usage::Display {
+        let precision = (p.int_digits + p.frac_digits) as u8;
+        return Ok((
+            FieldKind::Edited {
+                precision: precision.max(1),
+                scale: p.frac_digits as u8,
+                signed: p.signed,
+                mask: p.mask,
+            },
+            p.width,
+        ));
+    }
+
     let digits = p.int_digits + p.frac_digits;
     let scale = p.frac_digits as u8;
     let signed = p.signed;
@@ -529,23 +569,29 @@ struct PicShape {
     int_digits: usize,
     frac_digits: usize,
     signed: bool,
+    /// Whether the PIC uses any editing character (`Z * , . / B 0 $ + - CR DB`),
+    /// making it an edited numeric (decode strips the editing). A plain
+    /// `9(n)` / `S9(7)V99` is **not** edited.
+    edited: bool,
+    /// The expanded, width-bearing edit mask (only meaningful when `edited`):
+    /// the PIC's byte-occupying characters with `(n)` repeats expanded and the
+    /// zero-width `S`/`V`/`P` removed — e.g. `ZZ,ZZ9.99`, `99999CR`.
+    mask: String,
+    /// Total byte width of the edited image (`mask.len()`; meaningful when
+    /// `edited`).
+    width: usize,
 }
 
 impl PicShape {
     fn parse(pic: &str) -> Result<PicShape> {
         let pic = pic.trim().to_ascii_uppercase();
-        let mut text = false;
-        let mut char_count = 0;
-        let mut int_digits = 0;
-        let mut frac_digits = 0;
-        let mut signed = false;
-        let mut after_v = false;
 
+        // Expand the PIC into a flat symbol stream, resolving `(n)` repeats.
         let chars: Vec<char> = pic.chars().collect();
+        let mut expanded: Vec<char> = Vec::new();
         let mut i = 0;
         while i < chars.len() {
             let c = chars[i];
-            // A symbol may be followed by a repeat count in parentheses.
             let count = if i + 1 < chars.len() && chars[i + 1] == '(' {
                 let close = chars[i + 1..]
                     .iter()
@@ -562,51 +608,133 @@ impl PicShape {
                 i += 1;
                 1
             };
-
-            match c {
-                'X' | 'A' => {
-                    text = true;
-                    char_count += count;
-                }
-                '9' => {
-                    if after_v {
-                        frac_digits += count;
-                    } else {
-                        int_digits += count;
-                    }
-                }
-                'S' => signed = true,
-                'V' => after_v = true,
-                'P' => {
-                    /* implied scaling position; treat as fractional pad */
-                    frac_digits += count;
-                }
-                'Z' | '*' | '0' | ',' | '/' | 'B' => {
-                    // Edited numeric symbols: approximate as display digit positions.
-                    if after_v {
-                        frac_digits += count;
-                    } else {
-                        int_digits += count;
-                    }
-                }
-                '+' | '-' | '$' | '.' | 'C' | 'R' | 'D' => {
-                    // Sign/insertion symbols in edited pictures — ignore extent.
-                }
-                _ => return Err(Error(format!("unsupported PIC symbol {c:?} in {pic:?}"))),
+            for _ in 0..count {
+                expanded.push(c);
             }
         }
 
-        if text && (int_digits + frac_digits) > 0 {
+        let mut text = false;
+        let mut char_count = 0;
+        let mut int_digits = 0;
+        let mut frac_digits = 0;
+        let mut signed = false;
+        let mut edited = false;
+        let mut after_v = false;
+        let mut mask = String::new();
+        // Floating-string / sign symbol tallies — all but one occurrence of a
+        // currency/sign run denotes a digit position (`$$$$` → 3 digits + symbol).
+        let (mut dollars, mut pluses, mut minuses) = (0usize, 0usize, 0usize);
+
+        let mut j = 0;
+        while j < expanded.len() {
+            let c = expanded[j];
+            match c {
+                'X' | 'A' => {
+                    text = true;
+                    char_count += 1;
+                    mask.push(c);
+                }
+                '9' => {
+                    if after_v {
+                        frac_digits += 1;
+                    } else {
+                        int_digits += 1;
+                    }
+                    mask.push('9');
+                }
+                'S' => signed = true,  // zero-width sign indicator
+                'V' => after_v = true, // zero-width implied decimal point
+                'P' => {
+                    // Implied scaling position: zero-width, treated as fractional.
+                    frac_digits += 1;
+                }
+                'Z' | '*' => {
+                    edited = true;
+                    if after_v {
+                        frac_digits += 1;
+                    } else {
+                        int_digits += 1;
+                    }
+                    mask.push(c);
+                }
+                ',' | '/' | 'B' | '0' => {
+                    // Insertion characters: occupy width, contribute no digit.
+                    edited = true;
+                    mask.push(c);
+                }
+                '.' => {
+                    // The actual decimal point: occupies width and fixes the scale.
+                    edited = true;
+                    after_v = true;
+                    mask.push('.');
+                }
+                '$' => {
+                    edited = true;
+                    dollars += 1;
+                    mask.push('$');
+                }
+                '+' => {
+                    edited = true;
+                    signed = true;
+                    pluses += 1;
+                    mask.push('+');
+                }
+                '-' => {
+                    edited = true;
+                    signed = true;
+                    minuses += 1;
+                    mask.push('-');
+                }
+                'C' => {
+                    // `CR` credit marker (two bytes) ⇒ sign.
+                    if expanded.get(j + 1) == Some(&'R') {
+                        edited = true;
+                        signed = true;
+                        mask.push('C');
+                        mask.push('R');
+                        j += 2;
+                        continue;
+                    }
+                    return Err(Error(format!("unsupported PIC symbol 'C' in {pic:?}")));
+                }
+                'D' => {
+                    // `DB` debit marker (two bytes) ⇒ sign.
+                    if expanded.get(j + 1) == Some(&'B') {
+                        edited = true;
+                        signed = true;
+                        mask.push('D');
+                        mask.push('B');
+                        j += 2;
+                        continue;
+                    }
+                    return Err(Error(format!("unsupported PIC symbol 'D' in {pic:?}")));
+                }
+                _ => return Err(Error(format!("unsupported PIC symbol {c:?} in {pic:?}"))),
+            }
+            j += 1;
+        }
+
+        // Each currency/sign run contributes `count - 1` digit positions (the
+        // remaining one is the floating/fixed symbol itself); these sit in the
+        // integer part of the value.
+        int_digits +=
+            dollars.saturating_sub(1) + pluses.saturating_sub(1) + minuses.saturating_sub(1);
+
+        if text && (int_digits + frac_digits > 0 || edited) {
             return Err(Error(format!(
                 "mixed text/numeric PIC not supported: {pic:?}"
             )));
         }
+        let width = mask.len();
         Ok(PicShape {
             text,
             char_count,
             int_digits,
             frac_digits,
             signed,
+            edited,
+            mask,
+            width,
         })
     }
 }
@@ -646,6 +774,102 @@ mod tests {
             }
             _ => panic!("expected decimal"),
         }
+    }
+
+    #[test]
+    fn pic_edited_zero_suppressed() {
+        let (k, w) = parse_pic("ZZ,ZZ9.99", Usage::Display, None).unwrap();
+        assert_eq!(w, 9);
+        match k {
+            FieldKind::Edited {
+                precision,
+                scale,
+                signed,
+                mask,
+            } => {
+                assert_eq!(precision, 7);
+                assert_eq!(scale, 2);
+                assert!(!signed);
+                assert_eq!(mask, "ZZ,ZZ9.99");
+            }
+            other => panic!("expected edited, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn pic_edited_cr_is_signed() {
+        let (k, w) = parse_pic("9(5)CR", Usage::Display, None).unwrap();
+        assert_eq!(w, 7); // 5 digits + "CR"
+        match k {
+            FieldKind::Edited {
+                precision,
+                scale,
+                signed,
+                mask,
+            } => {
+                assert_eq!(precision, 5);
+                assert_eq!(scale, 0);
+                assert!(signed);
+                assert_eq!(mask, "99999CR");
+            }
+            other => panic!("expected edited, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn pic_edited_floating_currency_precision() {
+        // $$$,$$9.99 → 5 int digits (4 floating $ + literal 9) + 2 frac = 7.
+        let (k, w) = parse_pic("$$$,$$9.99", Usage::Display, None).unwrap();
+        assert_eq!(w, 10);
+        match k {
+            FieldKind::Edited {
+                precision, scale, ..
+            } => {
+                assert_eq!(precision, 7);
+                assert_eq!(scale, 2);
+            }
+            other => panic!("expected edited, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn pic_plain_numeric_not_edited() {
+        // Plain numerics must keep their existing (non-edited) handling.
+        assert!(matches!(
+            parse_pic("9(5)", Usage::Display, None).unwrap().0,
+            FieldKind::Int { .. }
+        ));
+        assert!(matches!(
+            parse_pic("S9(7)V99", Usage::Comp3, None).unwrap().0,
+            FieldKind::Decimal { .. }
+        ));
+        assert!(matches!(
+            parse_pic("S9(5)", Usage::Display, None).unwrap().0,
+            FieldKind::Decimal {
+                repr: NumRepr::Zoned,
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn edited_pic_decimal_point_not_a_statement_terminator() {
+        // The '.' inside the edited PIC must not split the statement; only the
+        // trailing separator period terminates it.
+        let src = "01 R. 05 AMT PIC ZZ,ZZ9.99. 05 TAG PIC X(3).";
+        let layout = parse(src).unwrap();
+        assert_eq!(layout.fields.len(), 2);
+        assert_eq!(layout.fields[0].name, "AMT");
+        match &layout.fields[0].kind {
+            FieldKind::Edited { scale, mask, .. } => {
+                assert_eq!(*scale, 2);
+                assert_eq!(mask, "ZZ,ZZ9.99");
+            }
+            other => panic!("expected edited, got {other:?}"),
+        }
+        assert_eq!(layout.fields[0].width, 9);
+        assert_eq!(layout.fields[1].name, "TAG");
+        assert_eq!(layout.fields[1].offset, 9);
     }
 
     #[test]

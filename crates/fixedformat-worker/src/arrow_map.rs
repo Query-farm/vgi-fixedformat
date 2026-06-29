@@ -55,6 +55,9 @@ fn base_type(f: &Field) -> Result<DataType> {
         FieldKind::Pad { .. } => DataType::Null,
         FieldKind::Decimal {
             precision, scale, ..
+        }
+        | FieldKind::Edited {
+            precision, scale, ..
         } => {
             if *precision > MAX_DECIMAL_PRECISION {
                 return Err(rt(format!(
