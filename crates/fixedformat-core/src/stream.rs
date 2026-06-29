@@ -273,6 +273,13 @@ impl<R: BufRead> RecordStream<R> {
                         "fixed framing requires a non-zero record length".into(),
                     ));
                 }
+                // The Fixed reader allocates `record_len` bytes per record, so an
+                // absurd `record_length =>` is an allocation DoS — bound it.
+                if record_len > max_record_bytes {
+                    return Err(Error(format!(
+                        "record_length {record_len} exceeds the maximum of {max_record_bytes} bytes"
+                    )));
+                }
                 State::Fixed {
                     reader,
                     record_len,

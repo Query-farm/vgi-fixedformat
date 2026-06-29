@@ -32,7 +32,7 @@ pub fn parse(src: &str) -> Result<Layout> {
     } else {
         roots
     };
-    let (fields, _w) = layout_nodes(&record_nodes)?;
+    let (fields, _w) = layout_nodes(&record_nodes, 0)?;
     Layout::from_fields(fields)
 }
 
@@ -253,7 +253,13 @@ fn navigate<'a>(roots: &'a mut [Raw], path: &[usize]) -> &'a mut Raw {
 
 /// Compute offsets and build [`Field`]s for a sibling list (offsets relative to
 /// the siblings' start). Returns the fields and the consumed width.
-fn layout_nodes(nodes: &[Raw]) -> Result<(Vec<Field>, usize)> {
+fn layout_nodes(nodes: &[Raw], depth: usize) -> Result<(Vec<Field>, usize)> {
+    if depth > crate::layout::MAX_NESTING_DEPTH {
+        return Err(Error(format!(
+            "copybook nesting exceeds the maximum depth of {}",
+            crate::layout::MAX_NESTING_DEPTH
+        )));
+    }
     let mut fields: Vec<Field> = Vec::new();
     let mut name_off: HashMap<String, usize> = HashMap::new();
     let mut cursor = 0usize;
@@ -263,7 +269,7 @@ fn layout_nodes(nodes: &[Raw]) -> Result<(Vec<Field>, usize)> {
         let (kind, width) = if node.children.is_empty() {
             elementary(node)?
         } else {
-            let (children, gw) = layout_nodes(&node.children)?;
+            let (children, gw) = layout_nodes(&node.children, depth + 1)?;
             (FieldKind::Group(children), gw)
         };
 

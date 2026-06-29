@@ -10,6 +10,12 @@
 
 use crate::{Error, Result};
 
+/// Maximum group/STRUCT nesting depth a spec may declare. Bounds the recursion in
+/// the copybook / JSON parsers (and thus in decode/encode, which mirror the tree)
+/// so a pathologically deep spec can't overflow the stack. COBOL itself only
+/// permits 49 levels, so this is generous.
+pub const MAX_NESTING_DEPTH: usize = 64;
+
 /// A complete record layout: the field list plus the total record byte length.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Layout {

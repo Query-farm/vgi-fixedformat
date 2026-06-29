@@ -69,7 +69,7 @@ pub fn parse(src: &str) -> Result<Layout> {
     };
 
     let mut auto = 0usize;
-    let (fields, _width) = layout_fields(&raw, &mut auto)?;
+    let (fields, _width) = layout_fields(&raw, &mut auto, 0)?;
     Layout::from_fields(fields)
 }
 
@@ -77,7 +77,13 @@ pub fn parse(src: &str) -> Result<Layout> {
 /// the siblings' start (so a group's children are group-relative, matching the
 /// codec contract); returns the fields and the bytes a single occurrence of the
 /// whole list consumes. `auto` threads the auto-naming counter through nesting.
-fn layout_fields(raw: &[JsonField], auto: &mut usize) -> Result<(Vec<Field>, usize)> {
+fn layout_fields(raw: &[JsonField], auto: &mut usize, depth: usize) -> Result<(Vec<Field>, usize)> {
+    if depth > crate::layout::MAX_NESTING_DEPTH {
+        return Err(Error(format!(
+            "spec nesting exceeds the maximum depth of {}",
+            crate::layout::MAX_NESTING_DEPTH
+        )));
+    }
     let mut fields = Vec::with_capacity(raw.len());
     let mut offset = 0usize;
     for jf in raw {
@@ -88,7 +94,7 @@ fn layout_fields(raw: &[JsonField], auto: &mut usize) -> Result<(Vec<Field>, usi
         // A `fields` array makes this a group (STRUCT); otherwise it's a leaf.
         let (kind, width) = match &jf.fields {
             Some(children) => {
-                let (child_fields, gw) = layout_fields(children, auto)?;
+                let (child_fields, gw) = layout_fields(children, auto, depth + 1)?;
                 (FieldKind::Group(child_fields), gw)
             }
             None => field_kind(jf)?,
