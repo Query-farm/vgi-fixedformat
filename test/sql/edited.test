@@ -1,0 +1,77 @@
+# name: test/sql/edited.test
+# description: COBOL edited (PICTURE-editing) numeric fields — zero suppression
+#              (Z/*), insertion (, . /), currency ($), and CR/DB sign markers
+#              decode to DECIMAL(p,s); supported masks round-trip through pack.
+# group: [sql]
+
+require-env VGI_TEST_WORKER
+
+statement ok
+ATTACH 'fixed' AS fixed (TYPE vgi, LOCATION '${VGI_TEST_WORKER}');
+
+statement ok
+SET search_path='fixed.main';
+
+# Zero-suppressed edited PIC: "   123.45" → 123.45 at scale 2.
+query T
+SELECT unpack_fixed('   123.45', '01 R. 05 AMT PIC ZZ,ZZ9.99.').AMT::VARCHAR;
+----
+123.45
+
+# The edited field maps to a DuckDB DECIMAL (precision = digit positions).
+query T
+SELECT typeof(unpack_fixed('   123.45', '01 R. 05 AMT PIC ZZ,ZZ9.99.').AMT);
+----
+DECIMAL(7,2)
+
+# Fixed currency + comma insertion: "$1,234.56" → 1234.56.
+query T
+SELECT unpack_fixed('$1,234.56', '01 R. 05 AMT PIC $9,999.99.').AMT::VARCHAR;
+----
+1234.56
+
+# Check protection (asterisk fill): "***1.50" → 1.50.
+query T
+SELECT unpack_fixed('***1.50', '01 R. 05 AMT PIC ***9.99.').AMT::VARCHAR;
+----
+1.50
+
+# CR credit marker ⇒ negative: "00123CR" → -123.
+query T
+SELECT unpack_fixed('00123CR', '01 R. 05 N PIC 9(5)CR.').N::VARCHAR;
+----
+-123
+
+# A positive value renders the CR positions blank, decoding back to +123.
+query T
+SELECT unpack_fixed('00123  ', '01 R. 05 N PIC 9(5)CR.').N::VARCHAR;
+----
+123
+
+# Template edited token (must begin with a 9/S9 digit): "0012.50" → 12.50.
+query T
+SELECT unpack_fixed('0012.50', 'amt:9(4).99').amt::VARCHAR;
+----
+12.50
+
+# describe_fixed labels the field kind `edited` and the DuckDB type.
+query TTT
+SELECT kind, sql_type, path FROM describe_fixed('01 R. 05 AMT PIC ZZ,ZZ9.99.');
+----
+edited	DECIMAL(7,2)	AMT
+
+# Supported (non-floating) masks round-trip through pack_fixed.
+query I
+SELECT (pack_fixed({'AMT': 123.45}, '01 R. 05 AMT PIC ZZ,ZZ9.99.') = '   123.45')::INT;
+----
+1
+
+query I
+SELECT (pack_fixed({'N': -123}, '01 R. 05 N PIC 9(5)CR.') = '00123CR')::INT;
+----
+1
+
+# Floating currency/sign masks are not supported for write — clear error.
+statement error
+SELECT pack_fixed({'AMT': 123.45}, '01 R. 05 AMT PIC $$$,$$9.99.');
+----

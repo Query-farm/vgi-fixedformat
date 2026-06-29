@@ -104,6 +104,17 @@ pub enum FieldKind {
         repr: NumRepr,
         sign: SignKind,
     },
+    /// COBOL **edited** numeric field (PICTURE editing): a print-image number
+    /// like `ZZ,ZZ9.99` / `$$$,$$9.99` / `9(5)CR` / `***1.50`. Decodes to a
+    /// `DECIMAL(precision, scale)` by stripping the editing characters; the
+    /// `mask` is the expanded width-bearing PIC (used to render on encode).
+    /// See [`crate::edited`].
+    Edited {
+        precision: u8,
+        scale: u8,
+        signed: bool,
+        mask: String,
+    },
     /// Group item: a nested set of fields rendered as a STRUCT column.
     Group(Vec<Field>),
 }

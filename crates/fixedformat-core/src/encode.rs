@@ -214,6 +214,12 @@ fn encode_one(
             put(buf, at, &bytes);
             Ok(width)
         }
+        FieldKind::Edited { scale, mask, .. } => {
+            let unscaled = as_decimal(value, *scale)?;
+            let bytes = crate::edited::encode(unscaled, *scale, mask)?;
+            put(buf, at, &maybe_ebcdic(&bytes, enc));
+            Ok(width)
+        }
     }
 }
 

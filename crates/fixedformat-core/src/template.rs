@@ -356,6 +356,42 @@ mod tests {
     }
 
     #[test]
+    fn edited_pic_token_decodes() {
+        // A `9`-leading edited PIC token decodes to a DECIMAL value. (Edited PICs
+        // beginning with `Z`/`$`/`*` collide with template string codes, so a
+        // template edited field must start with a `9`/`S9` digit.)
+        let layout = parse("amt:9(4).99 flag:9(5)CR").unwrap();
+        assert!(matches!(
+            layout.fields[0].kind,
+            FieldKind::Edited { scale: 2, .. }
+        ));
+        assert_eq!(layout.fields[0].width, 7); // 9999.99
+        assert!(matches!(
+            layout.fields[1].kind,
+            FieldKind::Edited {
+                signed: true,
+                scale: 0,
+                ..
+            }
+        ));
+        let out = decode_record(&layout, b"0012.5000123CR", Encoding::Ascii).unwrap();
+        assert_eq!(
+            out[0].1,
+            Value::Decimal {
+                unscaled: 1250,
+                scale: 2
+            }
+        );
+        assert_eq!(
+            out[1].1,
+            Value::Decimal {
+                unscaled: -123,
+                scale: 0
+            }
+        );
+    }
+
+    #[test]
     fn decodes_against_struct_pack_bytes() {
         // Python: struct.pack('>hIf', -2, 7, 1.5) == b'\xff\xfe\x00\x00\x00\x07?\xc0\x00\x00'
         let layout = parse("a:s b:I c:f").unwrap();

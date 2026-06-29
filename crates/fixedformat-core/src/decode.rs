@@ -179,6 +179,13 @@ fn decode_one(
                 scale: *scale,
             }
         }
+        FieldKind::Edited { scale, signed, .. } => {
+            let unscaled = crate::edited::decode(&to_ascii(slice, enc), *scale, *signed)?;
+            Value::Decimal {
+                unscaled,
+                scale: *scale,
+            }
+        }
     };
     Ok((value, field.width))
 }
