@@ -3,8 +3,10 @@
 //! Supports the practical copybook subset: nested groups via level numbers,
 //! elementary `PIC` items (`X`, `A`, `9`, `S`, `V`), `USAGE` (`DISPLAY`,
 //! `COMP-3`/`PACKED-DECIMAL`, `COMP`/`COMP-4`/`COMP-5`/`BINARY`), `OCCURS n`
-//! (→ LIST), `REDEFINES` (→ folded STRUCT), and `SIGN LEADING/TRAILING
-//! [SEPARATE]`. `VALUE` clauses and level-88 condition names are ignored.
+//! (→ LIST), `REDEFINES` (→ folded STRUCT), `SIGN LEADING/TRAILING
+//! [SEPARATE]`, and `SYNCHRONIZED`/`SYNC [LEFT|RIGHT]` (binary items align to
+//! their natural storage boundary via implicit slack bytes). `VALUE` clauses
+//! and level-88 condition names are ignored.
 //!
 //! The [`parse_pic`] helper is shared with the template front-end.
 
@@ -48,6 +50,9 @@ struct Raw {
     depending_on: Option<String>,
     redefines: Option<String>,
     sign: Option<SignKind>,
+    /// `SYNCHRONIZED`/`SYNC` requests natural-boundary alignment for a binary
+    /// item (halfword/fullword/doubleword), inserting implicit slack bytes.
+    synchronized: bool,
     children: Vec<Raw>,
 }
 
@@ -100,6 +105,7 @@ fn parse_stmt(toks: &[String]) -> Result<Option<Raw>> {
     let mut depending_on = None;
     let mut redefines = None;
     let mut sign: Option<SignKind> = None;
+    let mut synchronized = false;
 
     let upper: Vec<String> = toks.iter().map(|t| t.to_ascii_uppercase()).collect();
     let mut i = 2;
@@ -186,6 +192,21 @@ fn parse_stmt(toks: &[String]) -> Result<Option<Raw>> {
                 });
                 i = j + 1;
             }
+            "SYNC" | "SYNCHRONIZED" => {
+                // SYNC [LEFT|RIGHT] — request natural-boundary alignment. LEFT
+                // and RIGHT only matter for a rarely-used edge case (the slack
+                // side within signed binary); both are treated the same here.
+                synchronized = true;
+                let mut j = i + 1;
+                if upper
+                    .get(j)
+                    .map(|s| s == "LEFT" || s == "RIGHT")
+                    .unwrap_or(false)
+                {
+                    j += 1;
+                }
+                i = j;
+            }
             "VALUE" | "VALUES" => {
                 // Skip the value literal(s) up to end of statement.
                 break;
@@ -205,6 +226,7 @@ fn parse_stmt(toks: &[String]) -> Result<Option<Raw>> {
         depending_on,
         redefines,
         sign,
+        synchronized,
         children: Vec::new(),
     }))
 }
@@ -272,6 +294,19 @@ fn layout_nodes(nodes: &[Raw], depth: usize) -> Result<(Vec<Field>, usize)> {
             let (children, gw) = layout_nodes(&node.children, depth + 1)?;
             (FieldKind::Group(children), gw)
         };
+
+        // A `SYNCHRONIZED` binary item aligns to its natural storage boundary
+        // (halfword/fullword/doubleword = its own 2/4/8-byte width) by inserting
+        // implicit slack bytes *before* it. Alignment is measured from the start
+        // of the record; for a sibling list rooted at the record (the common
+        // case) the running `cursor` is that absolute offset. SYNC is meaningful
+        // only for binary items — it is a no-op on DISPLAY/COMP-3/zoned — and a
+        // REDEFINES item keeps its target's offset, so it is never re-aligned.
+        if node.synchronized && node.redefines.is_none() && matches!(kind, FieldKind::Binary { .. })
+        {
+            let boundary = width; // 2, 4, or 8 — same as the COMP byte width
+            cursor += (boundary - cursor % boundary) % boundary;
+        }
 
         let offset = match &node.redefines {
             Some(target) => *name_off.get(&target.to_ascii_uppercase()).ok_or_else(|| {
@@ -737,5 +772,91 @@ mod tests {
             let reenc = encode_record(&layout, &decoded, Encoding::Ascii).unwrap();
             assert_eq!(reenc, rec, "round-trip failed for {rec:?}");
         }
+    }
+
+    #[test]
+    fn sync_halfword_inserts_one_slack_byte() {
+        // A (1 byte) at 0; B is a 2-byte halfword COMP that must start on a
+        // multiple of 2 → 1 slack byte, B at offset 2, record length 4.
+        let src = "01 R.
+          05 A PIC X(1).
+          05 B PIC S9(4) COMP SYNC.";
+        let layout = parse(src).unwrap();
+        assert_eq!(layout.fields[0].name, "A");
+        assert_eq!(layout.fields[0].offset, 0);
+        assert_eq!(layout.fields[1].name, "B");
+        assert_eq!(layout.fields[1].offset, 2);
+        assert_eq!(layout.fields[1].width, 2);
+        assert_eq!(layout.record_len, 4);
+    }
+
+    #[test]
+    fn sync_fullword_inserts_three_slack_bytes() {
+        // A (1 byte) at 0; B is a 4-byte fullword COMP that must start on a
+        // multiple of 4 → 3 slack bytes, B at offset 4, record length 8.
+        let src = "01 R.
+          05 A PIC X(1).
+          05 B PIC S9(7) COMP SYNC.";
+        let layout = parse(src).unwrap();
+        assert_eq!(layout.fields[1].offset, 4);
+        assert_eq!(layout.fields[1].width, 4);
+        assert_eq!(layout.record_len, 8);
+    }
+
+    #[test]
+    fn sync_doubleword_aligns_to_eight() {
+        // A (1 byte) at 0; B is an 8-byte doubleword COMP → 7 slack bytes,
+        // B at offset 8, record length 16.
+        let src = "01 R.
+          05 A PIC X(1).
+          05 B PIC S9(12) COMP SYNCHRONIZED RIGHT.";
+        let layout = parse(src).unwrap();
+        assert_eq!(layout.fields[1].offset, 8);
+        assert_eq!(layout.fields[1].width, 8);
+        assert_eq!(layout.record_len, 16);
+    }
+
+    #[test]
+    fn sync_already_aligned_inserts_no_slack() {
+        // Two consecutive halfwords: the first lands on 0 (aligned), the second
+        // on 2 (aligned) — SYNC adds nothing.
+        let src = "01 R.
+          05 A PIC S9(4) COMP SYNC.
+          05 B PIC S9(4) COMP SYNC.";
+        let layout = parse(src).unwrap();
+        assert_eq!(layout.fields[0].offset, 0);
+        assert_eq!(layout.fields[1].offset, 2);
+        assert_eq!(layout.record_len, 4);
+    }
+
+    #[test]
+    fn sync_on_display_is_a_noop() {
+        // SYNC on a DISPLAY/COMP-3 item inserts no padding (alignment only
+        // matters for binary).
+        let src = "01 R.
+          05 A PIC X(1).
+          05 B PIC 9(4) SYNC.
+          05 C PIC S9(5)V99 COMP-3 SYNC.";
+        let layout = parse(src).unwrap();
+        assert_eq!(layout.fields[1].name, "B");
+        assert_eq!(layout.fields[1].offset, 1); // DISPLAY 9(4): no slack, 4 bytes
+        assert_eq!(layout.fields[2].name, "C");
+        assert_eq!(layout.fields[2].offset, 5); // COMP-3 right after B: no slack
+    }
+
+    #[test]
+    fn sync_decode_places_bytes_at_aligned_offset() {
+        use crate::decode::decode_record;
+        use crate::value::Value;
+        use crate::Encoding;
+        // A at 0, slack at 1, halfword B at offset 2..4 (big-endian 0x0102 = 258).
+        let src = "01 R.
+          05 A PIC X(1).
+          05 B PIC S9(4) COMP SYNC.";
+        let layout = parse(src).unwrap();
+        let rec = [b'Z', 0x00, 0x01, 0x02];
+        let out = decode_record(&layout, &rec, Encoding::Ascii).unwrap();
+        assert_eq!(out[0].1, Value::Text("Z".into()));
+        assert_eq!(out[1].1, Value::Int(258));
     }
 }
