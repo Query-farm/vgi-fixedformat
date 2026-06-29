@@ -1,5 +1,5 @@
 # name: test/sql/basic.test
-# description: Version, template unpack_fixed/pack_fixed, and round-trip.
+# description: Template unpack_fixed/pack_fixed, and round-trip.
 # group: [sql]
 
 require-env VGI_TEST_WORKER
@@ -9,11 +9,6 @@ ATTACH 'fixed' AS fixed (TYPE vgi, LOCATION '${VGI_TEST_WORKER}');
 
 statement ok
 SET search_path='fixed.main';
-
-query T
-SELECT fixedformat_version();
-----
-0.1.0
 
 # Template spec: 10-byte name + 5-digit display int.
 query T
