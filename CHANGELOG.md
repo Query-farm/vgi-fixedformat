@@ -4,6 +4,29 @@ All notable changes to `vgi-fixedformat` are documented here. The format is
 based on [Keep a Changelog](https://keepachangelog.com/), and the project follows
 [Semantic Versioning](https://semver.org/).
 
+## [0.5.0] — functionality
+
+### Added
+- **Multi-record-type files** (`read_multi`): a JSON spec with a `discriminator`
+  + per-type layouts decodes each record with the layout chosen by its type and
+  returns a single `record` column of DuckDB **`UNION`** (one `STRUCT` variant per
+  record type — `union_tag` / `union_extract` to access). Header/detail/trailer
+  files now read in one pass.
+- **Date / time field type**: JSON `"date"` / `"time"` / `"datetime"` with a
+  strftime `format` parse fixed-width display bytes into DuckDB `DATE` / `TIME` /
+  `TIMESTAMP` (and back on write).
+- **Edited (PICTURE-editing) numerics**: report/print-image PICs like
+  `ZZ,ZZ9.99`, `$$$,$$9.99`, `9(5)CR`, `**1,234.50` decode to `DECIMAL(p,s)`
+  (stripping the editing); the non-floating masks round-trip on write.
+- **Projection pushdown** for `read_fixed`: only the selected columns are
+  materialized, mapped **by name** (which also fixed a latent reorder bug in the
+  positional transpose).
+
+### Fixed
+- **COBOL `SYNCHRONIZED` (SYNC) alignment**: binary items now align to their
+  natural halfword/fullword/doubleword boundary via implicit slack bytes — a SYNC
+  copybook previously computed wrong offsets for the item and everything after it.
+
 ## [0.4.0] — hardening
 
 ### Security / hardening (untrusted input)
