@@ -176,11 +176,15 @@ SELECT * FROM fixed.main.read_fixed('s3://bucket/x.dat', 'A10 N',
   `{"type":"date","width":8,"format":"%Y%m%d"}`) into a DuckDB `DATE` / `TIME` /
   `TIMESTAMP`. (Template/copybook have no date token — COBOL dates are plain
   numerics; use JSON.)
-- **multi-record** (`read_multi` only) — a JSON object selecting a per-record layout
-  by a discriminator: `{"discriminator":{"offset","width"}, "records":{"H":[…],"D":
-  […],"T":[…]}, "default":"D"?}`. Each `records` value is an ordinary **json** field
-  list (reused verbatim via `jsonspec::parse`, so all field types / groups / OCCURS
-  work per variant). `MultiLayout::parse` preserves the `records` order (stable union
+- **multi-record** (`read_multi`/`write_multi`/`unpack_multi`/`describe_multi`) — a
+  JSON object selecting a per-record layout by a discriminator:
+  `{"discriminator":{"offset","width"}, "records":{"H":…,"D":…,"T":…}, "default":"D"?}`.
+  Each `records` value is EITHER a **compact layout string** (a Perl/Python template
+  like `"x sku:A10 qty:9(5)"` — `x` is the 1-byte discriminator pad — routed through
+  `parse_spec`, so copybook/inline-JSON auto-detect too) OR a verbose **json** field
+  array (`jsonspec::parse`); the two forms can mix. `multirecord.rs` picks per value
+  (`Value::String → parse_spec`, else `jsonspec::parse`), so all field types / groups
+  / OCCURS work per variant. `MultiLayout::parse` preserves the `records` order (stable union
   type-ids); `MultiLayout::select(record, enc)` reads + trims the discriminator bytes
   (EBCDIC-transcoded first), matches case-sensitively against the tags, else falls
   back to `default` (else errors). The discriminator bytes are part of each record's

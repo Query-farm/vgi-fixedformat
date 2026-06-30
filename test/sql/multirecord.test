@@ -101,3 +101,27 @@ ORDER BY qty;
 ----
 GADGET	7
 WIDGET	42
+
+# Compact form: each variant's layout is a Perl/Python `unpack` TEMPLATE string
+# ('x' = the 1-byte discriminator pad) instead of a verbose JSON field array —
+# much terser, and it decodes identically.
+query T
+SELECT union_tag(record) FROM fixed.main.read_multi('data/multi.dat',
+    '{"discriminator":{"offset":0,"width":1},
+      "records":{"H":"x co:A20","D":"x sku:A10 qty:9(5)","T":"x cnt:9(6)"}}');
+----
+H
+D
+D
+T
+
+query TI
+SELECT union_extract(record, 'D').sku AS sku, union_extract(record, 'D').qty AS qty
+FROM fixed.main.read_multi('data/multi.dat',
+    '{"discriminator":{"offset":0,"width":1},
+      "records":{"H":"x co:A20","D":"x sku:A10 qty:9(5)","T":"x cnt:9(6)"}}')
+WHERE union_tag(record) = 'D'
+ORDER BY qty;
+----
+GADGET	7
+WIDGET	42

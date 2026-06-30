@@ -151,13 +151,15 @@ record with the layout chosen by its discriminator and returns a single column
 `record` of type **`UNION`** — one `STRUCT` variant per record type, the variant
 names being the discriminator values.
 
-The `spec` is a JSON object: a `discriminator` (`{offset, width}` — the bytes that
-identify each record's type) plus a `records` map of tag → field list (each field
-list uses the **same JSON field syntax** as `read_fixed`'s JSON spec, so every
-field type / group / OCCURS works per record type). An optional `default` tag
-handles values that match no record type (otherwise an unmatched value is a hard
-error). Note the discriminator bytes are part of each record's bytes, so a variant
-usually leads with a 1-byte `filler` covering the tag.
+The `spec` is a small JSON wrapper — a `discriminator` (`{offset, width}` — the
+bytes that identify each record's type) plus a `records` map of tag → layout —
+because the "dispatch on a discriminator" idea has no Perl/Python `unpack`
+equivalent (in those languages you read the type byte and call a different
+`unpack`/`struct` yourself). But **each variant's layout can be a compact
+template string** (the terse `unpack` style — auto-detected, so a copybook or
+inline JSON array works too), so it's far less verbose than a field array. The
+`x` token is the 1-byte discriminator pad. An optional `default` tag handles
+values that match no record type (otherwise an unmatched value is a hard error).
 
 ```sql
 SELECT
@@ -167,13 +169,19 @@ SELECT
 FROM read_multi('data/multi.dat', '{
   "discriminator": {"offset": 0, "width": 1},
   "records": {
-    "H": [{"type":"filler","width":1}, {"name":"co","type":"str","width":20}],
-    "D": [{"type":"filler","width":1}, {"name":"sku","type":"str","width":10},
-          {"name":"qty","type":"int","digits":5}],
-    "T": [{"type":"filler","width":1}, {"name":"cnt","type":"int","digits":6}]
+    "H": "x co:A20",
+    "D": "x sku:A10 qty:9(5)",
+    "T": "x cnt:9(6)"
   }
 }')
 WHERE union_tag(record) = 'D';
+```
+
+A variant may still be the verbose JSON field array when a field needs options a
+template can't express (and the two forms can mix):
+
+```json
+"D": [{"type":"filler","width":1}, {"name":"amt","type":"comp3","digits":9,"scale":2,"signed":true}]
 ```
 
 `typeof(record)` is

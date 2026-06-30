@@ -7,20 +7,26 @@
 //! discriminator from a record's bytes and returns the matching variant's layout,
 //! which the caller then decodes with the ordinary [`crate::decode::decode_record`].
 //!
-//! The spec is JSON and **additive** — it reuses the existing per-variant JSON
-//! field syntax verbatim (so every field type / group / OCCURS works per variant):
+//! The spec is a small JSON wrapper (the discriminator + the tag→layout dispatch
+//! have no Perl/Python `unpack` equivalent), but **each variant's layout can be a
+//! compact template string** (auto-detected by [`crate::parse_spec`], so a
+//! copybook or inline JSON works too) — much terser than a field array. The `x`
+//! token is the 1-byte discriminator pad:
 //!
 //! ```json
 //! {
 //!   "discriminator": {"offset": 0, "width": 1},
 //!   "records": {
-//!     "H": [ {"name":"co","type":"str","width":20} ],
-//!     "D": [ {"name":"sku","type":"str","width":10}, {"name":"qty","type":"int","digits":5} ],
-//!     "T": [ {"name":"count","type":"int","digits":6} ]
+//!     "H": "x co:A20",
+//!     "D": "x sku:A10 qty:9(5)",
+//!     "T": "x cnt:9(6)"
 //!   },
 //!   "default": "D"
 //! }
 //! ```
+//!
+//! A variant may also be the verbose JSON field array (`"D": [ {"name":"sku", …} ]`)
+//! when a field needs options a template can't express; the two forms can mix.
 //!
 //! `discriminator` is `{offset, width}` (bytes read from each record, transcoded
 //! out of EBCDIC if needed, trimmed, matched case-sensitively against the
@@ -78,7 +84,7 @@ impl<'de> Deserialize<'de> for OrderedRecords {
         impl<'de> Visitor<'de> for V {
             type Value = OrderedRecords;
             fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-                f.write_str("a map of record-type tag to JSON field list")
+                f.write_str("a map of record-type tag to a layout (template string or field list)")
             }
             fn visit_map<M>(self, mut map: M) -> std::result::Result<OrderedRecords, M::Error>
             where
@@ -113,11 +119,18 @@ impl MultiLayout {
             ));
         }
         let mut variants = Vec::with_capacity(raw.records.0.len());
-        for (tag, fields_json) in raw.records.0 {
-            // Reuse the existing JSON field-list parser (accepts a bare array or a
-            // `{"fields":[...]}` wrapper) by handing it the variant's value.
-            let layout = crate::jsonspec::parse(&fields_json.to_string())
-                .map_err(|e| Error(format!("record type {tag:?}: {e}")))?;
+        for (tag, value) in raw.records.0 {
+            // A variant's layout may be written two ways:
+            //   - a **string** — a compact Perl/Python `unpack` template (or a
+            //     copybook / inline JSON), auto-detected by `parse_spec`:
+            //       "D": "x sku:A10 qty:9(5)"
+            //   - a JSON **field array** (or `{"fields":[...]}`) for the verbose form:
+            //       "D": [ {"name":"sku","type":"str","width":10}, … ]
+            let layout = match &value {
+                serde_json::Value::String(s) => crate::parse_spec(s, None),
+                _ => crate::jsonspec::parse(&value.to_string()),
+            }
+            .map_err(|e| Error(format!("record type {tag:?}: {e}")))?;
             variants.push((tag, layout));
         }
         let default =
@@ -219,6 +232,37 @@ mod tests {
         // Variant layouts came through the JSON parser intact.
         assert_eq!(ml.variants[1].1.fields.len(), 2);
         assert!(ml.default.is_none());
+    }
+
+    #[test]
+    fn variant_layout_can_be_a_template_string() {
+        // The compact form: each variant is a Perl/Python `unpack` template string
+        // (`x` = the 1-byte discriminator pad) instead of a verbose JSON array.
+        let spec = r#"{
+            "discriminator": {"offset": 0, "width": 1},
+            "records": { "H": "x co:A20", "D": "x sku:A10 qty:9(5)" }
+        }"#;
+        let ml = MultiLayout::parse(spec).unwrap();
+        assert_eq!(ml.variants.len(), 2);
+        let (i, layout) = ml.select(b"DWIDGET    00042", Encoding::Ascii).unwrap();
+        assert_eq!(i, 1);
+        let out = decode_record(layout, b"DWIDGET    00042", Encoding::Ascii).unwrap();
+        assert_eq!(out[0].1, Value::Text("WIDGET".into()));
+        assert_eq!(out[1].1, Value::Int(42));
+    }
+
+    #[test]
+    fn template_and_array_variants_can_mix() {
+        // One variant a template string, the other a JSON array — both work.
+        let spec = r#"{
+            "discriminator": {"offset": 0, "width": 1},
+            "records": {
+                "H": "x co:A20",
+                "D": [ {"type":"pad","width":1}, {"name":"qty","type":"int","digits":5} ]
+            }
+        }"#;
+        let ml = MultiLayout::parse(spec).unwrap();
+        assert_eq!(ml.variants.len(), 2);
     }
 
     #[test]
