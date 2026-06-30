@@ -15,7 +15,7 @@
 //! reuses the ambient runtime via `block_in_place`.
 
 use std::future::Future;
-use std::sync::OnceLock;
+use std::sync::{Arc, OnceLock};
 
 use object_store::path::Path as ObjPath;
 use object_store::{ObjectStore, PutPayload};
@@ -338,19 +338,65 @@ fn s3_options(secrets: &Secrets, url: &Url) -> Vec<(String, String)> {
     opts
 }
 
-/// Fetch a single object's bytes from an already-built `store`. The streaming
-/// reader ([`crate::reader`]) builds the store once — which makes **no** network
-/// call — and then calls this lazily, only when it reaches that object, so a
-/// multi-file glob holds at most one object in memory at a time. `url` is used
-/// only for the error message. Whole-object reads are still required for the RDW
-/// framings (their length-prefix walking needs the full stream).
-pub fn fetch_object(store: &dyn ObjectStore, path: &ObjPath, url: &Url) -> Result<Vec<u8>> {
-    let bytes = block_on(async move {
-        let r = store.get(path).await?;
-        r.bytes().await
+/// Bytes fetched per remote range request while streaming (8 MiB) — peak memory
+/// for a streamed read is ~one chunk + one decode batch, regardless of object
+/// size.
+const REMOTE_CHUNK: u64 = 8 * 1024 * 1024;
+
+/// A synchronous [`Read`](std::io::Read) over a remote object that fetches it in
+/// fixed-size byte **ranges** on demand instead of buffering the whole object —
+/// so a large S3/HTTP object streams with bounded memory (newline/fixed framing
+/// then decodes a batch at a time). `head` is issued once for the total size.
+pub struct RangeReader {
+    store: Arc<dyn ObjectStore>,
+    path: ObjPath,
+    url: Url,
+    size: u64,
+    /// Next absolute byte offset to fetch.
+    pos: u64,
+    /// The current in-flight chunk and how much of it has been consumed.
+    buf: Vec<u8>,
+    off: usize,
+}
+
+/// Open a range-streaming reader over a remote object (one `head` to size it).
+pub fn range_reader(store: Arc<dyn ObjectStore>, path: ObjPath, url: Url) -> Result<RangeReader> {
+    let size = block_on(store.head(&path))
+        .map_err(|e| ve(format!("head {url}: {e}")))?
+        .size;
+    Ok(RangeReader {
+        store,
+        path,
+        url,
+        size,
+        pos: 0,
+        buf: Vec::new(),
+        off: 0,
     })
-    .map_err(|e| ve(format!("read {url}: {e}")))?;
-    Ok(bytes.to_vec())
+}
+
+impl std::io::Read for RangeReader {
+    fn read(&mut self, out: &mut [u8]) -> std::io::Result<usize> {
+        if self.off >= self.buf.len() {
+            if self.pos >= self.size {
+                return Ok(0); // EOF
+            }
+            let end = (self.pos + REMOTE_CHUNK).min(self.size);
+            let bytes = block_on(self.store.get_range(&self.path, self.pos..end)).map_err(|e| {
+                std::io::Error::other(format!(
+                    "read {} bytes {}..{}: {e}",
+                    self.url, self.pos, end
+                ))
+            })?;
+            self.pos = end;
+            self.buf = bytes.to_vec();
+            self.off = 0;
+        }
+        let n = (self.buf.len() - self.off).min(out.len());
+        out[..n].copy_from_slice(&self.buf[self.off..self.off + n]);
+        self.off += n;
+        Ok(n)
+    }
 }
 
 /// Write a whole object to a remote store. `http(s)://` is read-only.
@@ -829,7 +875,11 @@ mod tests {
         let fetch = |spec: &str| {
             let url = Url::parse(spec).unwrap();
             let (store, path) = build_store(&url, &secrets, &[]).unwrap();
-            fetch_object(store.as_ref(), &path, &url).unwrap()
+            // Whole-object GET — exercises build_store → SigV4 over real HTTP; the
+            // production range-streaming path adds a HEAD the mock doesn't model.
+            block_on(async move { store.get(&path).await?.bytes().await })
+                .unwrap()
+                .to_vec()
         };
         let a = fetch("s3://bucket-a/data.dat");
         let b = fetch("s3://bucket-b/data.dat");

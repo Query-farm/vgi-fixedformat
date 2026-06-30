@@ -15,7 +15,8 @@
 //! in memory at a time. (True per-range S3 streaming is a future step; a
 //! lazy-per-object fetch already bounds peak memory to one object.)
 
-use std::io::{BufRead, BufReader, Cursor, Read};
+use std::io::{BufRead, BufReader, Read};
+use std::sync::Arc;
 
 use arrow_array::{ArrayRef, RecordBatch};
 use arrow_schema::SchemaRef;
@@ -55,9 +56,9 @@ pub(crate) fn read_ve(e: impl std::fmt::Display) -> RpcError {
 pub(crate) enum Source {
     Local(String),
     Remote {
-        store: Box<dyn ObjectStore>,
+        store: Arc<dyn ObjectStore>,
         path: ObjPath,
-        /// Retained only for error messages.
+        /// Retained for error messages and per-request range fetches.
         url: Url,
     },
 }
@@ -80,8 +81,10 @@ impl Source {
                 Ok(Box::new(BufReader::new(f)))
             }
             Source::Remote { store, path, url } => {
-                let bytes = cloud::fetch_object(store.as_ref(), path, url)?;
-                Ok(Box::new(Cursor::new(bytes)))
+                // Stream the object in byte ranges so a large S3/HTTP object never
+                // materializes whole (newline/fixed then decode a batch at a time).
+                let r = cloud::range_reader(store.clone(), path.clone(), url.clone())?;
+                Ok(Box::new(BufReader::new(r)))
             }
         }
     }
@@ -101,7 +104,8 @@ pub(crate) fn resolve_sources(
             Location::Remote(url) => {
                 let (store, path) = cloud::build_store(url, secrets, overrides)?;
                 out.push(Source::Remote {
-                    store,
+                    // Arc so each lazy range fetch can share the store cheaply.
+                    store: Arc::from(store),
                     path,
                     url: url.clone(),
                 });
