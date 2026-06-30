@@ -50,9 +50,12 @@ needed.
   DEPENDING ON) variants. An unmatched discriminator value is a hard error unless the
   spec gives a `default` tag. `path` may glob / be `s3://`/`http(s)://` like
   `read_fixed`. The scalar `unpack_multi(rec, spec [, encoding])` decodes ONE record
-  to a UNION value (same sparse-union build, shared via `table::read_multi::{multi_layout,
-  union_fields, build_union_array}`). No COPY-FROM counterpart yet, and `describe_fixed`
-  does not (yet) accept multi-record specs.
+  to a UNION value, and `describe_multi(spec)` introspects each variant (one row per
+  record-type × field) — both share the sparse-union/describe build via
+  `table::read_multi::{multi_layout, union_fields, build_union_array}` /
+  `core::describe`. No COPY-FROM-multi (use `INSERT … SELECT record FROM read_multi`),
+  and `fixed` framing assumes a common record length across variants (no
+  fixed-by-type framing yet).
 - `fixed.main.write_fixed((FROM rel), path, spec [, format =>, encoding =>, framing =>])`
   — write a relation to a fixed-width file (table-buffering sink); returns
   `(rows_written, bytes_written)`.

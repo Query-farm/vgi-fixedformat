@@ -4,6 +4,23 @@ All notable changes to `vgi-fixedformat` are documented here. The format is
 based on [Keep a Changelog](https://keepachangelog.com/), and the project follows
 [Semantic Versioning](https://semver.org/).
 
+## [0.7.0] — multi-record extras
+
+### Added
+- **Scalar `unpack_multi(rec, spec [, encoding])`** — the scalar counterpart of
+  `read_multi`: decode one heterogeneous record into a DuckDB `UNION` value
+  (`union_tag` / `union_extract`).
+- **`describe_multi(spec)`** — introspect a multi-record spec without reading
+  data: one row per (record type, field), with the variant tag, DuckDB type, byte
+  offset, width, and OCCURS info (the multi-record `describe_fixed`).
+
+### Notes
+- There is intentionally no `COPY … FROM` multi-record form — load a heterogeneous
+  file with `INSERT INTO t SELECT record FROM read_multi(…)`.
+- `read_multi`'s `fixed` framing still assumes every record type is padded to one
+  common length; different fixed lengths per record type ("fixed-by-type" framing)
+  remains a future item — use `newline`/`rdw` framing meanwhile.
+
 ## [0.6.0] — write & cloud
 
 ### Added

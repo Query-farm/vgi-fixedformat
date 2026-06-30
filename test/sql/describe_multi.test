@@ -1,0 +1,35 @@
+# name: test/sql/describe_multi.test
+# description: describe_multi — introspect each variant of a multi-record spec.
+# group: [sql]
+
+require-env VGI_TEST_WORKER
+
+statement ok
+ATTACH 'fixed' AS fixed (TYPE vgi, LOCATION '${VGI_TEST_WORKER}');
+
+statement ok
+SET search_path='fixed.main';
+
+# One row per (record type, field), with the variant tag + per-variant offsets.
+query TTI
+SELECT record_type, path, byte_offset FROM describe_multi(
+  '{"discriminator":{"offset":0,"width":1},
+    "records":{
+      "H":[{"name":"co","type":"str","width":20}],
+      "D":[{"name":"sku","type":"str","width":10},{"name":"qty","type":"int","digits":5}]
+    }}')
+ORDER BY record_type, byte_offset;
+----
+D	sku	0
+D	qty	10
+H	co	0
+
+# sql_type per field is the DuckDB column type each variant field maps to.
+query TTT
+SELECT record_type, path, sql_type FROM describe_multi(
+  '{"discriminator":{"offset":0,"width":1},
+    "records":{"D":[{"name":"sku","type":"str","width":10},{"name":"amt","type":"comp3","digits":7,"scale":2,"signed":true}]}}')
+ORDER BY byte_offset;
+----
+D	sku	VARCHAR
+D	amt	DECIMAL(7,2)

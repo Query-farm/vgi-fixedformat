@@ -65,9 +65,11 @@ directory).
 - **Not yet supported:** `COPY … TO` does not forward `CREATE SECRET` credentials
   (use `write_fixed`/`write_multi` for secret-backed cloud writes); `http(s)://`
   is **read-only** (single object — no globbing); encodings are ASCII and EBCDIC
-  CP037 only (no Latin-1 / UTF-16 / other code pages yet); `describe` and
-  `COPY FROM` have no multi-record-type counterpart yet (use `read_multi` /
-  `unpack_multi`).
+  CP037 only (no Latin-1 / UTF-16 / other code pages yet). For multi-record-type
+  files there's no `COPY FROM` form (use `INSERT INTO t SELECT record FROM
+  read_multi(…)`), and `read_multi`'s `fixed` framing assumes every record type is
+  padded to one common length (different fixed lengths per type — "fixed-by-type"
+  — isn't supported yet; use `newline`/`rdw` framing for those).
 - **Safety caps (untrusted input):** decompression is bounded by
   `max_decompressed_bytes` (16 GiB default; gzip/zstd only) to stop a
   decompression bomb, a single record by 512 MiB, and `DECIMAL` precision by 38.
@@ -88,6 +90,7 @@ directory).
 | `write_fixed((FROM rel), path, spec [, options…])` | table function | Write a relation out to a fixed-width file |
 | `write_multi((FROM rel), path, spec [, options…])` | table function | Write a single-`UNION`-column relation back out to a heterogeneous (multi-record-type) file |
 | `describe_fixed(spec [, format =>])` | table function | Introspect a spec (fields, types, offsets) without reading data |
+| `describe_multi(spec)` | table function | Introspect a multi-record spec — one row per (record type, field) |
 
 `pack_fixed` is the exact inverse of `unpack_fixed`:
 `pack_fixed(unpack_fixed(rec, s), s) = rec`.

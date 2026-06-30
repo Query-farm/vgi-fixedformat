@@ -1,6 +1,7 @@
 //! Table functions exposed by the fixedformat worker.
 
 mod describe_fixed;
+mod describe_multi;
 mod read_fixed;
 pub(crate) mod read_multi;
 
@@ -15,6 +16,7 @@ pub fn register(worker: &mut Worker) {
     worker.register_table(read_fixed::ReadFixed);
     worker.register_table(read_multi::ReadMulti);
     worker.register_table(describe_fixed::DescribeFixed);
+    worker.register_table(describe_multi::DescribeMulti);
 }
 
 /// Resolve a local path spec to a concrete, sorted list of files (globs expand;
