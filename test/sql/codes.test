@@ -122,3 +122,52 @@ query I
 SELECT unpack_fixed('\x01\x00\x02\x00'::BLOB, '< a:s b:s').b;
 ----
 2
+
+# --- Perl-style (...) groups -> STRUCT ---
+# A parenthesised sub-template decodes to a STRUCT field; project its members.
+query TI
+SELECT (unpack_fixed('ABCD12', 'h:A2 g:(code:A2 n:9(2))')).g.code,
+       (unpack_fixed('ABCD12', 'h:A2 g:(code:A2 n:9(2))')).g.n;
+----
+CD	12
+
+query T
+SELECT typeof((unpack_fixed('ABCD12', 'h:A2 g:(code:A2 n:9(2))')).g);
+----
+STRUCT(code VARCHAR, n BIGINT)
+
+# --- a trailing count repeats the group -> LIST of STRUCT ---
+# (k:A1 v:9(1))3 over 'A1B2C3' -> three {k,v} structs (DuckDB lists are 1-indexed).
+query TI
+SELECT (unpack_fixed('A1B2C3', 'items:(k:A1 v:9(1))3')).items[2].k,
+       (unpack_fixed('A1B2C3', 'items:(k:A1 v:9(1))3')).items[2].v;
+----
+B	2
+
+# --- Perl '/' count-prefix: a count code, then that many group occurrences ---
+# 'C/(...)' reads one uint8 (= 2 here), then two (k:A1 v:9(1)) groups. The count
+# surfaces as `<name>_count`; the table itself is a LIST sized by that count.
+query II
+SELECT (unpack_fixed('\x02A1B2'::BLOB, 'lines:C/(k:A1 v:9(1))')).lines_count,
+       len((unpack_fixed('\x02A1B2'::BLOB, 'lines:C/(k:A1 v:9(1))')).lines);
+----
+2	2
+
+query TI
+SELECT (unpack_fixed('\x02A1B2'::BLOB, 'lines:C/(k:A1 v:9(1))')).lines[1].k,
+       (unpack_fixed('\x02A1B2'::BLOB, 'lines:C/(k:A1 v:9(1))')).lines[2].v;
+----
+A	2
+
+# Round-trip: a count-prefixed group packs back to the exact original bytes.
+query I
+SELECT (pack_fixed(unpack_fixed('\x02A1B2'::BLOB, 'lines:C/(k:A1 v:9(1))'),
+                   'lines:C/(k:A1 v:9(1))') = '\x02A1B2'::BLOB)::INT;
+----
+1
+
+# The count code must be an integer code, not a string/display field.
+statement error
+SELECT unpack_fixed('xx', 'g:A2/(a:A1)');
+----
+must be a single integer code

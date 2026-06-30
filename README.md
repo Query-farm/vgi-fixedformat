@@ -324,6 +324,22 @@ sets the default for everything after it. (`!`/`>` = network/big, `<` = little,
 A count is `(n)` or trailing digits: `A10` and `A(10)` are the same; `s(3)` is
 three int16s returned as a `LIST`.
 
+**Groups & repeating groups** (Perl `unpack`'s `(...)` and `/`):
+
+```
+hdr:A2 item:(sku:A10 qty:9(5))        -- item → STRUCT(sku, qty)
+items:(sku:A10 qty:9(5))3             -- 3 repeats → LIST of STRUCT
+lines:N/(sku:A10 qty:9(5))            -- count-prefix → variable-length LIST
+```
+
+A parenthesised sub-template is a `STRUCT`; a trailing count repeats it into a
+`LIST` of `STRUCT`. The `code/(...)` form (Perl's `/`) reads an integer `code`
+first and then *that many* group occurrences — the template spelling of COBOL's
+`OCCURS … DEPENDING ON`. The count is exposed as a `<name>_count` column and the
+group becomes a `LIST` sized by it (so `lines:N/(…)` yields `lines_count BIGINT`
+and `lines STRUCT(…)[]`). `code` must be an integer code (`C` `s` `N` `v` `l`
+`q` …). Groups nest, and `pack_fixed`/`write_fixed` round-trip them back to bytes.
+
 ### 2. JSON field list
 
 Self-documenting; good for generated specs.

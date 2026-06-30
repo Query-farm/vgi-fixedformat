@@ -32,37 +32,187 @@ const NATIVE: Endian = if cfg!(target_endian = "little") {
 };
 
 /// Parse a template string into a [`Layout`].
+///
+/// Beyond the flat tokens, two Perl-`unpack` constructs are supported:
+/// - **`(...)` groups** → a `STRUCT`; a trailing count repeats the group → a
+///   `LIST` of `STRUCT`. e.g. `lines:(sku:A10 qty:9(5))3`.
+/// - **`code/(...)` count-prefix** (Perl's `/`) → a count field of type `code`
+///   followed by *that many* group occurrences → a count-driven `LIST` (the
+///   template form of `OCCURS … DEPENDING ON`). e.g. `lines:N/(sku:A10 qty:9(5))`.
 pub fn parse(src: &str) -> Result<Layout> {
+    let tokens = tokenize(src)?;
+    let (fields, _width) = parse_tokens(&tokens)?;
+    Layout::from_fields(fields)
+}
+
+/// Split a template into tokens on whitespace, but **not** inside `(...)` groups
+/// (so `(sku:A10 qty:9(5))` stays one token while `9(5)`'s parens — which hold no
+/// space — are unaffected).
+fn tokenize(src: &str) -> Result<Vec<String>> {
+    let mut tokens = Vec::new();
+    let mut cur = String::new();
+    let mut depth = 0i32;
+    for ch in src.chars() {
+        match ch {
+            '(' => {
+                depth += 1;
+                cur.push(ch);
+            }
+            ')' => {
+                depth -= 1;
+                if depth < 0 {
+                    return Err(Error("template: unbalanced ')'".into()));
+                }
+                cur.push(ch);
+            }
+            c if c.is_whitespace() && depth == 0 => {
+                if !cur.is_empty() {
+                    tokens.push(std::mem::take(&mut cur));
+                }
+            }
+            c => cur.push(c),
+        }
+    }
+    if depth != 0 {
+        return Err(Error("template: unbalanced '('".into()));
+    }
+    if !cur.is_empty() {
+        tokens.push(cur);
+    }
+    Ok(tokens)
+}
+
+/// Split an optional `name:` prefix off a token. The `:` only counts as a name
+/// separator when it precedes any `(` or `/`, so a `:` inside a group body (e.g.
+/// the unnamed `N/(sku:A10 …)`) isn't mistaken for a field name.
+fn split_name(token: &str) -> (Option<String>, &str) {
+    let colon = token.find(':');
+    let before = |limit: Option<usize>| limit.is_none_or(|p| colon.unwrap() < p);
+    match colon {
+        Some(c) if before(token.find('(')) && before(token.find('/')) => {
+            (Some(token[..c].to_string()), &token[c + 1..])
+        }
+        _ => (None, token),
+    }
+}
+
+/// A `(...)` group body → its inner template string + an optional trailing repeat
+/// count. `body` must start with `(`.
+fn strip_group(body: &str) -> Result<(String, Option<usize>)> {
+    let chars: Vec<char> = body.chars().collect();
+    let mut depth = 0i32;
+    let mut close = None;
+    for (i, &c) in chars.iter().enumerate() {
+        match c {
+            '(' => depth += 1,
+            ')' => {
+                depth -= 1;
+                if depth == 0 {
+                    close = Some(i);
+                    break;
+                }
+            }
+            _ => {}
+        }
+    }
+    let close = close.ok_or_else(|| Error(format!("template: unbalanced group {body:?}")))?;
+    let inner: String = chars[1..close].iter().collect();
+    let trailing: String = chars[close + 1..].iter().collect();
+    let count = parse_count(&trailing.chars().collect::<Vec<_>>())?;
+    Ok((inner, count))
+}
+
+/// Parse a token list into fields (offsets relative to this list's start) and the
+/// total reserved width. Recurses for `(...)` groups.
+fn parse_tokens(tokens: &[String]) -> Result<(Vec<Field>, usize)> {
     let mut fields = Vec::new();
     let mut offset = 0usize;
     let mut order = Endian::Big; // default network order; `<`/`=` change it
     let mut auto = 0usize;
+    let name_or_auto = |opt: Option<String>, auto: &mut usize| {
+        opt.unwrap_or_else(|| {
+            *auto += 1;
+            format!("field_{auto}")
+        })
+    };
 
-    for token in src.split_whitespace() {
-        // Standalone byte-order control.
+    for token in tokens {
         if let Some(o) = order_control(token) {
             order = o;
             continue;
         }
-
-        let (name, body) = match token.split_once(':') {
-            Some((n, b)) => (Some(n.to_string()), b),
-            None => (None, token),
-        };
+        let (name_opt, body) = split_name(token);
         if body.is_empty() {
-            return Err(Error(format!("empty token {token:?}")));
+            return Err(Error(format!("template: empty token {token:?}")));
         }
 
-        let name = name.unwrap_or_else(|| {
-            auto += 1;
-            format!("field_{auto}")
-        });
+        // `code/(...)` — a count field then that many group occurrences (Perl `/`).
+        if let Some(idx) = body.find("/(") {
+            let (code, group) = body.split_at(idx);
+            let (cnt_kind, cnt_width, cnt_occurs) = parse_body(code, order)?;
+            if cnt_occurs.is_some()
+                || !matches!(cnt_kind, FieldKind::Binary { .. } | FieldKind::Int { .. })
+            {
+                return Err(Error(format!(
+                    "template: the count before '/' must be a single integer code, got {code:?}"
+                )));
+            }
+            let (inner_src, trailing) = strip_group(&group[1..])?; // skip '/'
+            if trailing.is_some() {
+                return Err(Error(
+                    "template: a count-prefixed group 'code/(...)' takes no trailing repeat count"
+                        .into(),
+                ));
+            }
+            let (children, gw) = parse_tokens(&tokenize(&inner_src)?)?;
+            let base = name_or_auto(name_opt, &mut auto);
+            let count_name = format!("{base}_count");
+            // The count field is visible (so the row carries the controller).
+            fields.push(Field {
+                name: count_name.clone(),
+                offset,
+                width: cnt_width,
+                kind: cnt_kind,
+                occurs: None,
+                depending_on: None,
+                redefines: None,
+            });
+            offset += cnt_width;
+            // The table reserves zero static footprint (variable length).
+            fields.push(Field {
+                name: base,
+                offset,
+                width: gw,
+                kind: FieldKind::Group(children),
+                occurs: None,
+                depending_on: Some(count_name),
+                redefines: None,
+            });
+            continue;
+        }
 
+        // `(...)` group, with an optional trailing repeat count.
+        if body.starts_with('(') {
+            let (inner_src, count) = strip_group(body)?;
+            let (children, gw) = parse_tokens(&tokenize(&inner_src)?)?;
+            fields.push(Field {
+                name: name_or_auto(name_opt, &mut auto),
+                offset,
+                width: gw,
+                kind: FieldKind::Group(children),
+                occurs: count,
+                depending_on: None,
+                redefines: None,
+            });
+            offset += gw * count.unwrap_or(1);
+            continue;
+        }
+
+        // Plain scalar code.
         let (kind, width, occurs) = parse_body(body, order)?;
         let total = width * occurs.unwrap_or(1);
-        // Pad tokens never produce a named output column but still advance.
         fields.push(Field {
-            name,
+            name: name_or_auto(name_opt, &mut auto),
             offset,
             width,
             kind,
@@ -73,7 +223,7 @@ pub fn parse(src: &str) -> Result<Layout> {
         offset += total;
     }
 
-    Layout::from_fields(fields)
+    Ok((fields, offset))
 }
 
 fn order_control(token: &str) -> Option<Endian> {
@@ -389,6 +539,80 @@ mod tests {
                 scale: 0
             }
         );
+    }
+
+    #[test]
+    fn group_produces_struct() {
+        // `(...)` → a STRUCT field.
+        let layout = parse("hdr:A2 item:(sku:A3 qty:s)").unwrap();
+        assert_eq!(layout.fields.len(), 2);
+        assert_eq!(layout.record_len, 2 + 3 + 2);
+        let children = match &layout.fields[1].kind {
+            FieldKind::Group(c) => c,
+            _ => panic!("expected group"),
+        };
+        assert_eq!(children.len(), 2);
+        let out = decode_record(&layout, b"XYABC\x00\x07", Encoding::Ascii).unwrap();
+        match &out[1].1 {
+            Value::Struct(pairs) => {
+                assert_eq!(pairs[0].1, Value::Text("ABC".into()));
+                assert_eq!(pairs[1].1, Value::Int(7));
+            }
+            _ => panic!("expected struct"),
+        }
+    }
+
+    #[test]
+    fn repeated_group_is_list_of_struct() {
+        // `(...)N` → a LIST of N STRUCTs (Perl `(A3 C)2`).
+        let layout = parse("items:(sku:A3 qty:C)2").unwrap();
+        assert_eq!(layout.fields[0].occurs, Some(2));
+        assert_eq!(layout.record_len, (3 + 1) * 2);
+        let out = decode_record(&layout, b"ABC\x05DEF\x09", Encoding::Ascii).unwrap();
+        match &out[0].1 {
+            Value::List(items) => {
+                assert_eq!(items.len(), 2);
+                match &items[1] {
+                    Value::Struct(p) => {
+                        assert_eq!(p[0].1, Value::Text("DEF".into()));
+                        assert_eq!(p[1].1, Value::Int(9));
+                    }
+                    _ => panic!(),
+                }
+            }
+            _ => panic!("expected list"),
+        }
+    }
+
+    #[test]
+    fn count_prefixed_group_is_a_depending_list() {
+        // `code/(...)` (Perl `/`) → a count field then that many group occurrences.
+        let layout = parse("lines:C/(sku:A3 qty:C)").unwrap();
+        assert!(layout.variable, "a count-prefixed group is variable-length");
+        assert_eq!(layout.fields[0].name, "lines_count");
+        assert_eq!(layout.fields[1].name, "lines");
+        assert_eq!(
+            layout.fields[1].depending_on.as_deref(),
+            Some("lines_count")
+        );
+        // count = 2, then two (sku A3, qty C) groups.
+        let out = decode_record(&layout, b"\x02ABC\x05DEF\x09", Encoding::Ascii).unwrap();
+        assert_eq!(out[0].1, Value::Int(2));
+        match &out[1].1 {
+            Value::List(items) => {
+                assert_eq!(items.len(), 2);
+                match &items[0] {
+                    Value::Struct(p) => assert_eq!(p[1].1, Value::Int(5)),
+                    _ => panic!(),
+                }
+            }
+            _ => panic!("expected list"),
+        }
+    }
+
+    #[test]
+    fn count_before_slash_must_be_integer() {
+        assert!(parse("x:A3/(a:C)").is_err());
     }
 
     #[test]

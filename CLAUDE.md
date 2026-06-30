@@ -165,6 +165,16 @@ SELECT * FROM fixed.main.read_fixed('s3://bucket/x.dat', 'A10 N',
   template token must begin with a `9`/`S9` digit (a leading `Z`/`$`/`*` collides
   with the `Z`/string codes), so `Z`/`$`/`*`-leading masks need the copybook form.
   Count is a width for string/hex/pad codes, a repeat (→ LIST) for numerics.
+  Two Perl-`unpack` grouping constructs are also supported (`template::parse` is
+  paren-aware and recursive): **`(...)` groups** → a `STRUCT` (e.g.
+  `item:(sku:A10 qty:9(5))`); a trailing count repeats the group → a `LIST` of
+  `STRUCT` (`(A3 C)2`); and the **`code/(...)` count-prefix** (Perl's `/`) → a
+  count field of type `code` followed by *that many* group occurrences → the
+  template form of `OCCURS … DEPENDING ON` (e.g. `lines:N/(sku:A10 qty:9(5))`).
+  The count surfaces as the column `<name>_count` and the table is a LIST sized
+  by it; `code` must be an integer code (`C`/`s`/`N`/`v`/`l`/`q`/…). Byte-order
+  controls reset to big-endian at each group boundary (put `<`/`>` inside the
+  group to override within).
 - **json** — `[{"name","type","width"|"digits","scale","signed","endian","occurs",
   "justify","pad","sign","format"}, ...]` (or `{"fields":[...]}`). A field may instead carry
   a nested `"fields":[...]` array → it becomes a **group** (STRUCT; `type` optional),

@@ -108,10 +108,11 @@ fn kind_label(f: &Field) -> String {
     }
 }
 
-/// The DuckDB column type, wrapping in `…[]` for OCCURS (matches `arrow_map`).
+/// The DuckDB column type, wrapping in `…[]` for OCCURS — fixed count or
+/// `DEPENDING ON` (which has `occurs == None` but is still a list). Matches `arrow_map`.
 fn sql_type(f: &Field) -> String {
     let base = base_sql_type(f);
-    if f.occurs.is_some() {
+    if f.occurs.is_some() || f.depending_on.is_some() {
         format!("{base}[]")
     } else {
         base

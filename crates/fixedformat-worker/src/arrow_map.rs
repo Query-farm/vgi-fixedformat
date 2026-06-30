@@ -43,12 +43,14 @@ pub fn layout_struct_type(layout: &Layout) -> Result<DataType> {
     Ok(DataType::Struct(layout_fields(layout)?))
 }
 
-/// The Arrow `Field` for one layout field (wrapping in `List` for OCCURS).
+/// The Arrow `Field` for one layout field (wrapping in `List` for OCCURS — either
+/// a fixed count or `DEPENDING ON`, which has `occurs == None` but is still a list).
 fn arrow_field(f: &Field) -> Result<ArrowField> {
     let base = base_type(f)?;
-    let ty = match f.occurs {
-        Some(_) => DataType::List(Arc::new(ArrowField::new("item", base, true))),
-        None => base,
+    let ty = if f.occurs.is_some() || f.depending_on.is_some() {
+        DataType::List(Arc::new(ArrowField::new("item", base, true)))
+    } else {
+        base
     };
     Ok(ArrowField::new(&f.name, ty, true))
 }

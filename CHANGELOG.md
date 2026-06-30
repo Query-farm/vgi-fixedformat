@@ -4,6 +4,24 @@ All notable changes to `vgi-fixedformat` are documented here. The format is
 based on [Keep a Changelog](https://keepachangelog.com/), and the project follows
 [Semantic Versioning](https://semver.org/).
 
+## [0.8.0] — template groups & count-prefix
+
+### Added
+- **Perl-`unpack` `(...)` groups in the template spec** — a parenthesised
+  sub-template decodes to a `STRUCT`; a trailing count repeats it into a `LIST`
+  of `STRUCT` (e.g. `item:(sku:A10 qty:9(5))` and `items:(…)3`). Groups nest.
+- **`code/(...)` count-prefix** (Perl's `/`) — read an integer `code`, then
+  *that many* group occurrences: the template spelling of `OCCURS … DEPENDING ON`.
+  The count surfaces as a `<name>_count` column and the group becomes a
+  count-sized `LIST` (e.g. `lines:N/(sku:A10 qty:9(5))`). These also work inside
+  multi-record record specs, which accept template strings. `pack_fixed` /
+  `write_fixed` round-trip both constructs back to bytes.
+
+### Fixed
+- `arrow_map` and `describe_fixed` now treat a `DEPENDING ON` field (which carries
+  `occurs == None`) as a `LIST`, matching fixed-`OCCURS` fields — so a
+  count-prefixed group reports `STRUCT(…)[]` rather than a bare `STRUCT`.
+
 ## [0.7.0] — multi-record extras
 
 ### Added
