@@ -62,11 +62,11 @@ directory).
   the prebuilt binaries are platform-specific (download the one matching your OS
   and CPU). If `ATTACH` fails with an opaque Arrow/IPC error, you most likely have
   a mismatched `vgi` extension version — update it (`UPDATE EXTENSIONS;`).
-- **Not yet supported:** writing compressed output (`write_fixed` / `COPY … TO`
-  emit raw bytes); `COPY … TO` does not forward `CREATE SECRET` credentials (use
-  `write_fixed` for secret-backed cloud writes); `http(s)://` is **read-only**
-  (single object — no globbing); encodings are ASCII and EBCDIC CP037 only (no
-  Latin-1 / UTF-16 / other code pages yet).
+- **Not yet supported:** `COPY … TO` does not forward `CREATE SECRET` credentials
+  (use `write_fixed`/`write_multi` for secret-backed cloud writes); `http(s)://`
+  is **read-only** (single object — no globbing); encodings are ASCII and EBCDIC
+  CP037 only (no Latin-1 / UTF-16 / other code pages yet); `unpack`/`describe`/
+  `COPY FROM` have no multi-record-type counterpart yet (use `read_multi`).
 - **Safety caps (untrusted input):** decompression is bounded by
   `max_decompressed_bytes` (16 GiB default; gzip/zstd only) to stop a
   decompression bomb, a single record by 512 MiB, and `DECIMAL` precision by 38.
@@ -186,7 +186,13 @@ input relation as a subquery `(FROM …)`:
 ```sql
 SELECT * FROM write_fixed((FROM my_table), '/tmp/out.dat', 'name:A10 qty:9(5)');
 -- returns one row: (rows_written, bytes_written)
+
+-- Compress the output (auto from the .gz/.zst extension, or compression =>):
+SELECT * FROM write_fixed((FROM my_table), '/tmp/out.dat.gz', 'name:A10 qty:9(5)');
 ```
+
+Named options mirror `read_fixed`: `format`, `encoding`, `framing`, plus
+`compression` (`auto` / `none` / `gzip` / `zstd`) and the `s3://` overrides.
 
 ### `write_multi` — write a heterogeneous (multi-record-type) file
 
@@ -318,9 +324,17 @@ Self-documenting; good for generated specs.
 ```
 
 Types: `str`, `int`, `decimal`, `comp3`/`packed`, `zoned`, `binary`/`comp`,
-`float`/`double`/`half`, `hex`, `bool`, `pad`. Options: `width`, `digits`,
-`scale`, `signed`, `endian` (`big`/`little`), `occurs`, `justify` (`left`/`right`),
-`pad`, `sign` (`leading`/`trailing`/`embedded`).
+`float`/`double`/`half`, `hex`, `bool`, `pad`, and the temporal types `date` /
+`time` / `datetime` (= `timestamp`). Options: `width`, `digits`, `scale`,
+`signed`, `endian` (`big`/`little`), `occurs`, `justify` (`left`/`right`), `pad`,
+`sign` (`leading`/`trailing`/`embedded`), and `format` (required for the temporal
+types).
+
+**Dates & times** parse a field's display bytes with a strftime `format` into a
+real DuckDB `DATE` / `TIME` / `TIMESTAMP` — e.g.
+`{"name": "d", "type": "date", "width": 8, "format": "%Y%m%d"}` turns `20240131`
+into `2024-01-31`. (Template and copybook have no date token — COBOL dates are
+plain numerics; use the JSON spec for typed dates.)
 
 A field may instead carry a nested `fields` array, making it a **group**
 (`STRUCT`; its `type` is then optional). Combined with `occurs` a group becomes a
@@ -361,8 +375,13 @@ Real copybook text — paste it straight in.
   (not `fixed`).
 - `REDEFINES` → a `STRUCT` holding every overlapping interpretation of the same
   bytes (named after the base field).
-- `USAGE COMP-3`/`PACKED-DECIMAL`, `COMP`/`COMP-4`/`COMP-5`/`BINARY`, and
-  `SIGN LEADING/TRAILING [SEPARATE]` are honored.
+- `USAGE COMP-3`/`PACKED-DECIMAL`, `COMP`/`COMP-4`/`COMP-5`/`BINARY`,
+  `SIGN LEADING/TRAILING [SEPARATE]`, and `SYNCHRONIZED`/`SYNC` (binary items
+  align to their natural boundary) are honored.
+- **Edited (PICTURE-editing) numerics** — report/print-image PICs like
+  `ZZ,ZZ9.99`, `$$$,$$9.99`, `9(5)CR`, `**1,234.50` decode to an exact
+  `DECIMAL(p,s)` (the editing — zero-suppression, currency, commas, `CR`/`DB` and
+  `+`/`-` signs — is stripped). The non-floating masks round-trip on write.
 
 ---
 
@@ -372,10 +391,11 @@ Real copybook text — paste it straight in.
 |-------|-------------|
 | text / hex | `VARCHAR` |
 | display / binary integer | `BIGINT` |
-| COMP-3, zoned, implied-point decimal | `DECIMAL(p, s)` (exact) |
+| COMP-3, zoned, implied-point, **edited** decimal | `DECIMAL(p, s)` (exact) |
 | float32 / float16 | `REAL` |
 | float64 | `DOUBLE` |
 | boolean | `BOOLEAN` |
+| `date` / `time` / `datetime` (JSON spec) | `DATE` / `TIME` / `TIMESTAMP` |
 | OCCURS / OCCURS DEPENDING ON | `LIST` of the above (variable-length for DEPENDING ON) |
 | group / nested `fields` / REDEFINES | `STRUCT` |
 
@@ -389,19 +409,27 @@ Real copybook text — paste it straight in.
   - `rdw` — IBM variable-length: each record prefixed with a 4-byte Record
     Descriptor Word.
   - `rdw_blocked` — RDW records inside Block Descriptor Word blocks.
-- **compression** (`read_fixed` / `COPY … FROM`): `auto` (default — detect
-  `gzip`/`zstd` from magic bytes, else read raw), `none`, `gzip`, or `zstd`.
-  Decompression happens before framing and works for local and `s3://` paths
-  alike. (Writing compressed output is not yet supported — `write_fixed` /
-  `COPY … TO` emit raw bytes.)
+- **compression** — works on both sides:
+  - **read** (`read_fixed` / `read_multi` / `COPY … FROM`): `auto` (default —
+    detect `gzip`/`zstd` from magic bytes, else read raw), `none`, `gzip`, or
+    `zstd`. Decompression happens before framing, local or `s3://` alike.
+  - **write** (`write_fixed` / `write_multi` / `COPY … TO`): `auto` (default —
+    `gzip` for a `.gz` destination, `zstd` for `.zst`, else raw), `none`, `gzip`,
+    or `zstd`. The whole file is compressed before writing.
 
 `read_fixed` **streams** `newline`/`fixed` files — records are framed and decoded
 a batch at a time (decompressing on the fly), so memory stays flat on large
 inputs instead of holding the whole file plus every decoded row; a multi-file
-glob reads one file at a time. `rdw`/`rdw_blocked` still buffer a whole object
-(their length-prefix walking needs it). Because reads stream, a malformed record
-deep in a file aborts the statement after earlier batches were produced — the
-failed statement returns no result, so nothing partial is committed.
+glob reads one file at a time. **`s3://`/`http(s)://` objects stream too**: they're
+fetched in 8 MiB byte ranges on demand, so a large cloud object never materializes
+whole. `rdw`/`rdw_blocked` still buffer a whole object (their length-prefix walking
+needs it). Because reads stream, a malformed record deep in a file aborts the
+statement after earlier batches were produced — the failed statement returns no
+result, so nothing partial is committed.
+
+**Projection pushdown:** `read_fixed` only materializes the columns your query
+actually selects (mapped by name), so `SELECT one_field FROM read_fixed(…)` over a
+wide layout skips building the rest.
 
 ---
 
