@@ -67,6 +67,7 @@ impl ScalarFunction for UnpackMulti {
             "unpack multi, multi-record, heterogeneous, discriminator, record type, union, decode, \
              copybook, fixed-width, mainframe, record to union",
         );
+        tags.push(crate::meta::category("Encode & Decode"));
         tags.push((
             "vgi.example_queries".into(),
             r#"[

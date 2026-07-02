@@ -58,8 +58,9 @@ impl CopyFromFunction for CopyFixed {
         let mut tags = crate::meta::object_tags(
             "Load Fixed-Width File (COPY FROM)",
             "Load a fixed-width / flat-file / COBOL-copybook file straight into a DuckDB table — \
-             the COPY-FROM counterpart of read_fixed. Invoked via `COPY <table> FROM '<path>' \
-             (FORMAT 'fixed.fixed', spec '<layout>', …)`, not called directly. The format name is \
+             the COPY-FROM counterpart of read_fixed. It is invoked as a COPY statement (not \
+             called directly):\n\n```sql\nCOPY <table> FROM '<path>' (FORMAT 'fixed.fixed', spec \
+             '<layout>');\n```\n\nThe format name is \
              catalog-qualified by the ATTACH name (e.g. 'fixed.fixed'). Each record is decoded per \
              the `spec` option (a Perl/Python `unpack` template, a JSON field list, or a COBOL \
              copybook; auto-detected unless `format` is given) and the decoded columns are assigned \
@@ -70,14 +71,15 @@ impl CopyFromFunction for CopyFixed {
              plus `endpoint`/`region`/`url_style`/`use_ssl` for `s3://` sources. `path` may be \
              local, `s3://`, or `http(s)://`. Use it to ingest mainframe or legacy flat-file data \
              into an existing table without a read_fixed call.",
-            "Load a fixed-width file into a table: `COPY <table> FROM '<path>' (FORMAT \
-             'fixed.fixed', spec '<layout>')`. Decoded columns map to the target table's columns by \
+            "Load a fixed-width file into a table:\n\n```sql\nCOPY <table> FROM '<path>' (FORMAT \
+             'fixed.fixed', spec '<layout>');\n```\n\nDecoded columns map to the target table's columns by \
              position (cast to each type). Named options: `spec` (required), `format`, `encoding`, \
              `framing`, `record_length`, and S3 overrides. The COPY-FROM counterpart of \
              `read_fixed`.",
             "copy from, load, fixed-width file, flat file, ingest, copybook, mainframe, EBCDIC, \
              RDW, COMP-3, S3, table load, bulk load",
         );
+        tags.push(crate::meta::category("COPY Integration"));
         tags.push((
             "vgi.result_columns_md".into(),
             "Returns **no result set** — this is a `COPY … FROM` loader. Rows decoded from the \

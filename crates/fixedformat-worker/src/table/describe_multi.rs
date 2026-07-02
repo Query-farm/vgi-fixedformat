@@ -54,6 +54,7 @@ impl TableFunction for DescribeMulti {
             "describe multi, introspect, multi-record, heterogeneous, discriminator, record type, \
              layout, schema, fields, offsets, debug spec",
         );
+        tags.push(crate::meta::category("Layout Introspection"));
         tags.push((
             "vgi.result_columns_md".into(),
             "A **fixed** result schema — one row per (record type, field):\n\n\

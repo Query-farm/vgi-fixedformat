@@ -56,6 +56,7 @@ impl TableBufferingFunction for WriteFixed {
             "write fixed, export, fixed-width file, flat file, emit, copybook, mainframe, EBCDIC, \
              RDW, rdw_blocked, COMP-3, relation to file, table function, sink",
         );
+        tags.push(crate::meta::category("File Read & Write"));
         tags.push((
             "vgi.result_columns_md".into(),
             "| column | type | description |\n\

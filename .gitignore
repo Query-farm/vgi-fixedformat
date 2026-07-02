@@ -5,8 +5,8 @@
 # write_fixed test output artifacts
 data/_*
 
-# vgi-lint review cache
-.vgi-review-cache.json
+# vgi-lint review / simulate caches
+.vgi-*-cache.json
 
 # Claude Code session/worktree scratch (agent worktrees, local settings)
 /.claude

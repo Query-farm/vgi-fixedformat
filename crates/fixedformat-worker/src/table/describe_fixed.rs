@@ -57,6 +57,7 @@ impl TableFunction for DescribeFixed {
             "describe, introspect, layout, schema, fields, offsets, copybook, template, JSON spec, \
              debug spec, fixed-width, OCCURS, DEPENDING ON",
         );
+        tags.push(crate::meta::category("Layout Introspection"));
         tags.push((
             "vgi.result_columns_md".into(),
             "A **fixed** result schema — one row per field (group items and their children \

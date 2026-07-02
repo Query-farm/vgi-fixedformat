@@ -131,6 +131,7 @@ impl TableFunction for ReadMulti {
             "read multi, multi-record, heterogeneous, header detail trailer, discriminator, record \
              type, union, copybook, flat file, mainframe, fixed-width",
         );
+        tags.push(crate::meta::category("File Read & Write"));
         tags.push((
             "vgi.result_columns_md".into(),
             "A single column `record` of type **UNION** — one STRUCT variant per record type, named \
@@ -163,7 +164,7 @@ impl TableFunction for ReadMulti {
                 "path",
                 0,
                 "any",
-                "Path(s) to the file(s) to read: a single VARCHAR or a LIST(VARCHAR). May glob \
+                "Path(s) to the file(s) to read: a single path or a list of paths. May glob \
                  (e.g. 'data/*.dat') or be a cloud URL ('s3://bucket/key' or 'https://host/file'). \
                  Credentials come from the matching DuckDB secret, scoped per path.",
             ),

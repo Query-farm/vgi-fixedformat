@@ -68,6 +68,7 @@ impl TableFunction for ReadFixed {
             "read fixed, scan, fixed-width file, flat file, ingest, copybook, mainframe, EBCDIC, \
              RDW, rdw_blocked, record_length, COMP-3, glob, file to rows, table function",
         );
+        tags.push(crate::meta::category("File Read & Write"));
         tags.push((
             "vgi.result_columns_md".into(),
             "The returned columns are **dynamic** — they are determined by the layout `spec` \
@@ -123,8 +124,8 @@ impl TableFunction for ReadFixed {
                 "path",
                 0,
                 "any",
-                "Path(s) to the fixed-width file(s) to read: a single VARCHAR, or a \
-                 LIST(VARCHAR) to read several files in one call (their rows are concatenated in \
+                "Path(s) to the fixed-width file(s) to read: a single path, or a list of paths \
+                 to read several files in one call (their rows are concatenated in \
                  order). A path may be a glob (e.g. 'data/*.dat') to scan matching files in sorted \
                  order, or a cloud URL: 's3://bucket/key' (AWS S3, or R2/MinIO/GCS-HMAC via a \
                  `CREATE SECRET (TYPE s3, …, ENDPOINT …)`) or 'https://host/file'. Credentials \

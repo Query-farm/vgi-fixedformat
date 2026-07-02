@@ -44,6 +44,7 @@ impl ScalarFunction for FixedFormatVersion {
                 );
                 // VGI509: ship at least one guaranteed-runnable example. This one
                 // needs no file or external backend, so it executes cleanly.
+                tags.push(crate::meta::category("Worker Metadata"));
                 tags.push((
                     "vgi.executable_examples".into(),
                     r#"[

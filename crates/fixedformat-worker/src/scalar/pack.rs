@@ -136,6 +136,7 @@ impl ScalarFunction for Pack {
         } else {
             example_queries_json()
         };
+        tags.push(crate::meta::category("Encode & Decode"));
         tags.push(("vgi.example_queries".into(), examples_json));
         FunctionMetadata {
             description: description.into(),

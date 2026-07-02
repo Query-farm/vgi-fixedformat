@@ -112,6 +112,7 @@ impl TableBufferingFunction for WriteMulti {
             "write multi, multi-record, heterogeneous, header detail trailer, discriminator, union, \
              export, fixed-width file, flat file, emit, copybook, mainframe, EBCDIC, RDW, sink",
         );
+        tags.push(crate::meta::category("File Read & Write"));
         tags.push((
             "vgi.result_columns_md".into(),
             "| column | type | description |\n\

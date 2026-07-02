@@ -53,6 +53,13 @@ pub fn agent_test_tasks_json(tasks: &[(&str, &str, &str)]) -> String {
     format!("[{}]", items.join(","))
 }
 
+/// Build the object-level `vgi.category` tag naming the object's single primary
+/// category (VGI409/VGI411). The name MUST be one declared in the schema's
+/// `vgi.categories` registry (see `catalog_metadata` in `main.rs`).
+pub fn category(name: &str) -> (String, String) {
+    ("vgi.category".to_string(), name.to_string())
+}
+
 /// Build the four standard per-object discovery/description tags
 /// (`vgi.title`, `vgi.doc_llm`, `vgi.doc_md`, `vgi.keywords`).
 pub fn object_tags(
