@@ -22,7 +22,7 @@ mod scalar;
 mod table;
 mod value_in;
 
-use vgi::catalog::{CatSchema, CatalogModel};
+use vgi::catalog::{CatSchema, CatView, CatalogModel};
 use vgi::Worker;
 
 /// Catalog + schema metadata (description, provenance) surfaced to DuckDB and
@@ -185,6 +185,107 @@ fn catalog_metadata(name: &str) -> CatalogModel {
                          a single row with one column named version.",
                         "SELECT fixed.main.fixedformat_version() AS version",
                     ),
+                    (
+                        "describe_fixed_offset",
+                        "I have the fixed-width layout 'name:A10 qty:9(5)' — a 10-character name \
+                         followed by a 5-digit zero-padded quantity. Without reading any data, \
+                         work out the byte offset at which the qty field begins and return it as a \
+                         single column named qty_offset.",
+                        "SELECT byte_offset AS qty_offset FROM \
+                         fixed.main.describe_fixed('name:A10 qty:9(5)') WHERE path = 'qty'",
+                    ),
+                    (
+                        "describe_multi_field_count",
+                        "This multi-record layout has a 1-byte record-type discriminator at offset \
+                         0 and two record types: a header 'H' with one field, and a detail 'D' \
+                         with a 10-char sku and a 5-digit qty. The spec is \
+                         {\"discriminator\":{\"offset\":0,\"width\":1},\"records\":{\"H\":\
+                         [{\"name\":\"co\",\"type\":\"str\",\"width\":20}],\"D\":[{\"name\":\
+                         \"sku\",\"type\":\"str\",\"width\":10},{\"name\":\"qty\",\"type\":\"int\",\
+                         \"digits\":5}]}}. Without reading any data, return how many fields the 'D' \
+                         record type declares, as a single column named field_count.",
+                        "SELECT count(*) AS field_count FROM fixed.main.describe_multi(\
+                         '{\"discriminator\":{\"offset\":0,\"width\":1},\"records\":{\"H\":\
+                         [{\"name\":\"co\",\"type\":\"str\",\"width\":20}],\"D\":[{\"name\":\
+                         \"sku\",\"type\":\"str\",\"width\":10},{\"name\":\"qty\",\"type\":\"int\",\
+                         \"digits\":5}]}}') WHERE record_type = 'D'",
+                    ),
+                    (
+                        "read_multi_detail_count",
+                        "The file data/multi.dat is a heterogeneous fixed-width feed whose records \
+                         have a 1-byte record-type tag at offset 0: 'H' header, 'D' detail, 'T' \
+                         trailer. Each record's first byte is the tag; a detail record is the tag \
+                         plus a 10-char sku and a 5-digit qty. The layout spec is \
+                         {\"discriminator\":{\"offset\":0,\"width\":1},\"records\":{\"H\":\
+                         [{\"type\":\"filler\",\"width\":1},{\"name\":\"co\",\"type\":\"str\",\
+                         \"width\":20}],\"D\":[{\"type\":\"filler\",\"width\":1},{\"name\":\"sku\",\
+                         \"type\":\"str\",\"width\":10},{\"name\":\"qty\",\"type\":\"int\",\
+                         \"digits\":5}],\"T\":[{\"type\":\"filler\",\"width\":1},{\"name\":\"cnt\",\
+                         \"type\":\"int\",\"digits\":6}]}}. Read the file and return how many \
+                         detail ('D') records it contains, as a single column named detail_count.",
+                        "SELECT count(*) AS detail_count FROM fixed.main.read_multi(\
+                         'data/multi.dat', '{\"discriminator\":{\"offset\":0,\"width\":1},\
+                         \"records\":{\"H\":[{\"type\":\"filler\",\"width\":1},{\"name\":\"co\",\
+                         \"type\":\"str\",\"width\":20}],\"D\":[{\"type\":\"filler\",\"width\":1},\
+                         {\"name\":\"sku\",\"type\":\"str\",\"width\":10},{\"name\":\"qty\",\
+                         \"type\":\"int\",\"digits\":5}],\"T\":[{\"type\":\"filler\",\"width\":1},\
+                         {\"name\":\"cnt\",\"type\":\"int\",\"digits\":6}]}}') WHERE \
+                         union_tag(record) = 'D'",
+                    ),
+                    (
+                        "unpack_multi_qty",
+                        "I have one heterogeneous record 'DWIDGET    00042'. Its first byte is a \
+                         record-type tag; 'D' means a detail record laid out as the tag byte, a \
+                         10-character sku, then a 5-digit zero-padded qty. The multi-record spec is \
+                         {\"discriminator\":{\"offset\":0,\"width\":1},\"records\":{\"H\":\
+                         [{\"type\":\"filler\",\"width\":1},{\"name\":\"co\",\"type\":\"str\",\
+                         \"width\":20}],\"D\":[{\"type\":\"filler\",\"width\":1},{\"name\":\"sku\",\
+                         \"type\":\"str\",\"width\":10},{\"name\":\"qty\",\"type\":\"int\",\
+                         \"digits\":5}]}}. Decode the record and return its qty as a single column \
+                         named qty.",
+                        "SELECT union_extract(fixed.main.unpack_multi('DWIDGET    00042', \
+                         '{\"discriminator\":{\"offset\":0,\"width\":1},\"records\":{\"H\":\
+                         [{\"type\":\"filler\",\"width\":1},{\"name\":\"co\",\"type\":\"str\",\
+                         \"width\":20}],\"D\":[{\"type\":\"filler\",\"width\":1},{\"name\":\"sku\",\
+                         \"type\":\"str\",\"width\":10},{\"name\":\"qty\",\"type\":\"int\",\
+                         \"digits\":5}]}}'), 'D').qty AS qty",
+                    ),
+                    (
+                        "write_multi_roundtrip",
+                        "Round-trip the heterogeneous file data/multi.dat: read it into its UNION \
+                         representation and write it straight back out to \
+                         data/_task_multi_out.dat using the same multi-record layout, then report \
+                         how many records were written as a single column named rows_written. The \
+                         layout spec (for both the read and the write) is \
+                         {\"discriminator\":{\"offset\":0,\"width\":1},\"records\":{\"H\":\
+                         [{\"type\":\"filler\",\"width\":1},{\"name\":\"co\",\"type\":\"str\",\
+                         \"width\":20}],\"D\":[{\"type\":\"filler\",\"width\":1},{\"name\":\"sku\",\
+                         \"type\":\"str\",\"width\":10},{\"name\":\"qty\",\"type\":\"int\",\
+                         \"digits\":5}],\"T\":[{\"type\":\"filler\",\"width\":1},{\"name\":\"cnt\",\
+                         \"type\":\"int\",\"digits\":6}]}}.",
+                        "SELECT rows_written FROM fixed.main.write_multi((FROM \
+                         fixed.main.read_multi('data/multi.dat', '{\"discriminator\":{\"offset\":0,\
+                         \"width\":1},\"records\":{\"H\":[{\"type\":\"filler\",\"width\":1},\
+                         {\"name\":\"co\",\"type\":\"str\",\"width\":20}],\"D\":[{\"type\":\
+                         \"filler\",\"width\":1},{\"name\":\"sku\",\"type\":\"str\",\"width\":10},\
+                         {\"name\":\"qty\",\"type\":\"int\",\"digits\":5}],\"T\":[{\"type\":\
+                         \"filler\",\"width\":1},{\"name\":\"cnt\",\"type\":\"int\",\"digits\":6}]}}\
+                         ')), 'data/_task_multi_out.dat', '{\"discriminator\":{\"offset\":0,\
+                         \"width\":1},\"records\":{\"H\":[{\"type\":\"filler\",\"width\":1},\
+                         {\"name\":\"co\",\"type\":\"str\",\"width\":20}],\"D\":[{\"type\":\
+                         \"filler\",\"width\":1},{\"name\":\"sku\",\"type\":\"str\",\"width\":10},\
+                         {\"name\":\"qty\",\"type\":\"int\",\"digits\":5}],\"T\":[{\"type\":\
+                         \"filler\",\"width\":1},{\"name\":\"cnt\",\"type\":\"int\",\"digits\":6}]}}\
+                         ')",
+                    ),
+                    (
+                        "spec_reference_framing",
+                        "Using the fixed-format worker's built-in reference table, list how many \
+                         record-framing modes it supports. Return the count as a single column \
+                         named framing_modes.",
+                        "SELECT count(*) AS framing_modes FROM fixed.main.spec_reference WHERE \
+                         topic = 'framing'",
+                    ),
                 ]),
             ),
             ("vgi.author".to_string(), "Query.Farm".to_string()),
@@ -296,7 +397,137 @@ fn catalog_metadata(name: &str) -> CatalogModel {
                         .to_string(),
                 ),
             ],
-            views: Vec::new(),
+            // A browsable, credential-free reference view (VGI146): it lets an
+            // agent SELECT the worker's own vocabulary — the three spec formats,
+            // the encoding / framing / compression option tokens, and the field
+            // kind → DuckDB type mapping — before it has to construct a `spec`
+            // argument for the table functions. Backed by a literal VALUES list so
+            // it scans instantly and needs no data file or secret.
+            views: vec![CatView {
+                name: "spec_reference".to_string(),
+                definition: "SELECT * FROM (VALUES \
+                    ('spec_format', 'template', '', 'Perl/Python unpack template string, e.g. \
+                     name:A10 qty:9(5).'), \
+                    ('spec_format', 'json', '', 'JSON field list (a field may nest a `fields` \
+                     array for STRUCT / LIST-of-STRUCT sub-records).'), \
+                    ('spec_format', 'copybook', '', 'COBOL copybook text (PIC clauses, OCCURS, \
+                     REDEFINES, COMP-3).'), \
+                    ('encoding', 'ascii', '', 'Plain ASCII / Latin-1 bytes (the default).'), \
+                    ('encoding', 'ebcdic', '', 'EBCDIC code page CP037 (IBM mainframe); also \
+                     governs zoned / COMP-3 sign nibbles.'), \
+                    ('framing', 'newline', '', 'Records separated by a newline byte (the \
+                     default).'), \
+                    ('framing', 'fixed', '', 'Back-to-back records of equal byte length (no \
+                     separator).'), \
+                    ('framing', 'rdw', '', 'IBM variable-length records, each prefixed by a \
+                     Record Descriptor Word.'), \
+                    ('framing', 'rdw_blocked', '', 'RDW records grouped into blocks, each \
+                     prefixed by a Block Descriptor Word.'), \
+                    ('compression', 'auto', '', 'Detect gzip / zstd from magic bytes on read; \
+                     derive from the file extension on write (the default).'), \
+                    ('compression', 'none', '', 'No compression (raw bytes).'), \
+                    ('compression', 'gzip', '', 'gzip (DEFLATE) whole-file compression.'), \
+                    ('compression', 'zstd', '', 'Zstandard whole-file compression.'), \
+                    ('field_kind', 'text / hex', 'VARCHAR', 'A character or hex field decoded to \
+                     a string.'), \
+                    ('field_kind', 'integer', 'BIGINT', 'A zoned or binary integer field.'), \
+                    ('field_kind', 'float / double', 'DOUBLE', 'An IEEE floating-point field.'), \
+                    ('field_kind', 'packed / zoned / implied-point', 'DECIMAL(p,s)', 'A COMP-3 \
+                     packed, zoned, or implied-decimal-point number.'), \
+                    ('field_kind', 'boolean', 'BOOLEAN', 'A single-flag boolean field.'), \
+                    ('field_kind', 'occurs / repeat', 'LIST', 'A repeating field (OCCURS or \
+                     OCCURS DEPENDING ON) as a LIST of the element type.'), \
+                    ('field_kind', 'group / redefines', 'STRUCT', 'A group item, nested fields, \
+                     or REDEFINES rendered as a STRUCT.') \
+                    ) AS t(topic, token, maps_to, description)"
+                    .to_string(),
+                comment: Some(
+                    "Reference registry of the worker's spec formats, encoding / framing / \
+                     compression option tokens, and field-kind to DuckDB-type mappings."
+                        .to_string(),
+                ),
+                tags: vec![
+                    (
+                        "vgi.title".to_string(),
+                        "Fixed Format — Spec Reference".to_string(),
+                    ),
+                    crate::meta::category("Layout Introspection"),
+                    ("domain".to_string(), "data-engineering".to_string()),
+                    (
+                        "vgi.keywords".to_string(),
+                        crate::meta::keywords_json(
+                            "reference, vocabulary, spec format, template, json, copybook, \
+                             encoding, ascii, ebcdic, framing, newline, rdw, compression, gzip, \
+                             zstd, field kind, DuckDB type, mapping, cheat sheet",
+                        ),
+                    ),
+                    (
+                        "vgi.doc_llm".to_string(),
+                        "A static lookup table of the fixed-format worker's own vocabulary, so an \
+                         agent can discover the valid option tokens and type mappings before \
+                         building a `spec`. One row per (topic, token): the `topic` column groups \
+                         the rows into `spec_format` (the three auto-detected layout formats — \
+                         template, json, copybook), `encoding` (ascii / ebcdic), `framing` \
+                         (newline / fixed / rdw / rdw_blocked), `compression` (auto / none / gzip \
+                         / zstd), and `field_kind` (how each layout field kind maps to a DuckDB \
+                         column type). The `token` column is the accepted value (or field-kind \
+                         name), `maps_to` is the resulting DuckDB type for field_kind rows (empty \
+                         otherwise), and `description` explains it. Query it to enumerate the \
+                         legal `encoding =>` / `framing =>` / `compression =>` / `format =>` \
+                         values, or to see which DuckDB type a COMP-3 or OCCURS field becomes."
+                            .to_string(),
+                    ),
+                    (
+                        "vgi.doc_md".to_string(),
+                        "# spec_reference\n\nA browsable, credential-free registry of the \
+                         `fixed` worker's own vocabulary — query it to discover valid option \
+                         values and type mappings before constructing a layout `spec`.\n\nEach row \
+                         is a (topic, token) pair:\n\n- **topic** — one of `spec_format`, \
+                         `encoding`, `framing`, `compression`, or `field_kind`.\n- **token** — the \
+                         accepted value for that topic (or the field-kind name).\n- **maps_to** — \
+                         for `field_kind` rows, the DuckDB column type the kind maps to; empty \
+                         otherwise.\n- **description** — a one-line explanation.\n\nFor example, \
+                         filter `topic = 'framing'` to list the record-framing modes, or \
+                         `topic = 'field_kind'` to see how a COMP-3 or OCCURS field is typed."
+                            .to_string(),
+                    ),
+                    (
+                        "vgi.example_queries".to_string(),
+                        "[{\"description\":\"List the record-framing modes the worker accepts, \
+                         with their meanings.\",\"sql\":\"SELECT token, description FROM \
+                         fixed.main.spec_reference WHERE topic = 'framing' ORDER BY token\"},\
+                         {\"description\":\"Show how each layout field kind maps to a DuckDB \
+                         column type.\",\"sql\":\"SELECT token AS field_kind, maps_to AS \
+                         duckdb_type FROM fixed.main.spec_reference WHERE topic = 'field_kind' \
+                         ORDER BY token\"}]"
+                            .to_string(),
+                    ),
+                ],
+                column_comments: vec![
+                    (
+                        "topic".to_string(),
+                        "The vocabulary group: 'spec_format', 'encoding', 'framing', \
+                         'compression', or 'field_kind'."
+                            .to_string(),
+                    ),
+                    (
+                        "token".to_string(),
+                        "The accepted option value within the topic, or the field-kind name for \
+                         'field_kind' rows."
+                            .to_string(),
+                    ),
+                    (
+                        "maps_to".to_string(),
+                        "For 'field_kind' rows, the DuckDB column type the kind maps to; an empty \
+                         string for the option-token rows."
+                            .to_string(),
+                    ),
+                    (
+                        "description".to_string(),
+                        "A one-line explanation of the token.".to_string(),
+                    ),
+                ],
+            }],
             macros: Vec::new(),
             tables: Vec::new(),
         }],

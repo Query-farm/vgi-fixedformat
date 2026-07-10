@@ -55,22 +55,37 @@ impl TableFunction for DescribeMulti {
              layout, schema, fields, offsets, debug spec",
         );
         tags.push(crate::meta::category("Layout Introspection"));
+        // VGI307/VGI321: a static result schema (same columns for every call).
+        // Mirrors `schema()` — describe_fixed's columns plus a leading
+        // `record_type` discriminator.
         tags.push((
-            "vgi.result_columns_md".into(),
-            "A **fixed** result schema — one row per (record type, field):\n\n\
-             | column | type | description |\n\
-             |---|---|---|\n\
-             | `record_type` | VARCHAR | The discriminator tag of the record type this field \
-             belongs to. |\n\
-             | `path` | VARCHAR | Dotted field path within that record type. |\n\
-             | `depth` | BIGINT | Nesting level (0 at the top). |\n\
-             | `kind` | VARCHAR | Codec label (e.g. `text`, `int32 LE`, `comp-3`). |\n\
-             | `sql_type` | VARCHAR | The DuckDB column type the field maps to. |\n\
-             | `byte_offset` | BIGINT | Static byte position within the record. |\n\
-             | `width` | BIGINT | Per-occurrence width in bytes. |\n\
-             | `occurs` | BIGINT | OCCURS maximum, else NULL. |\n\
-             | `depending_on` | VARCHAR | OCCURS … DEPENDING ON controller, else NULL. |"
-                .into(),
+            "vgi.result_columns_schema".into(),
+            r#"[
+  {"name": "record_type", "type": "VARCHAR", "description": "The discriminator tag of the record type this field belongs to."},
+  {"name": "path", "type": "VARCHAR", "description": "Dotted field path within that record type, e.g. `item.sku`."},
+  {"name": "depth", "type": "BIGINT", "description": "Nesting level of the field (0 at the top level)."},
+  {"name": "kind", "type": "VARCHAR", "description": "Codec label describing how the bytes are decoded, e.g. `text`, `int32 LE`, `comp-3`."},
+  {"name": "sql_type", "type": "VARCHAR", "description": "The DuckDB column type this field maps to, e.g. `VARCHAR`, `DECIMAL(9,2)`, `STRUCT`."},
+  {"name": "byte_offset", "type": "BIGINT", "description": "Static byte position of the field within its record type."},
+  {"name": "width", "type": "BIGINT", "description": "Per-occurrence field width in bytes."},
+  {"name": "occurs", "type": "BIGINT", "description": "OCCURS maximum for a repeating field, else NULL."},
+  {"name": "depending_on", "type": "VARCHAR", "description": "The controlling field name for an `OCCURS … DEPENDING ON` table, else NULL."}
+]"#
+            .into(),
+        ));
+        tags.push((
+            "vgi.example_queries".into(),
+            r#"[
+  {
+    "description": "Resolve a header/detail multi-record spec and show each record type's fields with their DuckDB types and byte offsets.",
+    "sql": "SELECT record_type, path, sql_type, byte_offset FROM fixed.main.describe_multi('{\"discriminator\":{\"offset\":0,\"width\":1},\"records\":{\"H\":[{\"name\":\"co\",\"type\":\"str\",\"width\":20}],\"D\":[{\"name\":\"sku\",\"type\":\"str\",\"width\":10},{\"name\":\"qty\",\"type\":\"int\",\"digits\":5}]}}') ORDER BY record_type, byte_offset"
+  },
+  {
+    "description": "Count how many fields each record type declares in a multi-record layout.",
+    "sql": "SELECT record_type, count(*) AS field_count FROM fixed.main.describe_multi('{\"discriminator\":{\"offset\":0,\"width\":1},\"records\":{\"H\":[{\"name\":\"co\",\"type\":\"str\",\"width\":20}],\"D\":[{\"name\":\"sku\",\"type\":\"str\",\"width\":10},{\"name\":\"qty\",\"type\":\"int\",\"digits\":5}]}}') GROUP BY record_type ORDER BY record_type"
+  }
+]"#
+            .into(),
         ));
         FunctionMetadata {
             description:

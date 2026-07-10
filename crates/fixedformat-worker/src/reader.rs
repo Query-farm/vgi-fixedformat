@@ -52,7 +52,7 @@ pub(crate) fn read_ve(e: impl std::fmt::Display) -> RpcError {
 
 /// A resolved byte source ready to open: a local file path, or a remote object
 /// addressed by a pre-built object store + key. The store is constructed when
-/// the source is resolved (cheap, no I/O); the bytes are fetched on [`open`].
+/// the source is resolved (cheap, no I/O); the bytes are fetched on `open`.
 pub(crate) enum Source {
     Local(String),
     Remote {

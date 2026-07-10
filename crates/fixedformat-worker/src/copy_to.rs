@@ -93,12 +93,22 @@ impl CopyToFunction for CopyToFixed {
              EBCDIC, RDW, COMP-3, S3, unload, bulk export",
         );
         tags.push(crate::meta::category("COPY Integration"));
+        // VGI307/VGI326: `copy_to_fixed` is a COPY … TO writer invoked through
+        // `COPY (<source>) TO '<path>' (FORMAT 'fixed.fixed_out', …)`, not as a
+        // table function, so it returns no result set of its own — DuckDB reports
+        // only a row count. Declared as `vgi.result_dynamic_columns_md` with the
+        // single reported value documented.
         tags.push((
-            "vgi.result_columns_md".into(),
-            "Returns **no result set** — this is a `COPY … TO` writer. The COPY source rows are \
-             encoded to fixed-width records and written to `<path>` (overwritten if it exists); \
-             DuckDB reports the number of rows written as the statement's `Count`. Each input \
-             column is matched to a layout field **by name** before encoding."
+            "vgi.result_dynamic_columns_md".into(),
+            "`copy_to_fixed` is invoked through `COPY (<query>|<table>) TO '<path>' (FORMAT \
+             'fixed.fixed_out', …)`, not as a table function, so it returns **no result set of its \
+             own**. The COPY source rows are encoded to fixed-width records and written to `<path>` \
+             (overwritten if it exists); each input column is matched to a layout field **by \
+             name** before encoding. DuckDB reports only a single value — the number of rows \
+             written:\n\n\
+             | Name | Type | Description |\n\
+             |---|---|---|\n\
+             | `Count` | BIGINT | The number of source rows written to the file, reported by DuckDB as the `COPY … TO` statement's result. |"
                 .into(),
         ));
         FunctionMetadata {
@@ -129,27 +139,34 @@ impl CopyToFunction for CopyToFixed {
                 "varchar",
                 "Force how `spec` is interpreted: 'template', 'json', or 'copybook'. Omit to \
                  auto-detect.",
-            ),
+            )
+            .with_choices(options::FORMAT_CHOICES),
             ArgSpec::column(
                 "encoding",
                 -1,
                 "varchar",
                 "Byte encoding to write: 'ascii' (the default) or 'ebcdic' (CP037).",
-            ),
+            )
+            .with_choices(options::ENCODING_CHOICES)
+            .with_default("ascii"),
             ArgSpec::column(
                 "framing",
                 -1,
                 "varchar",
                 "How to delimit records in the output: 'newline' (the default), 'fixed', 'rdw', \
                  or 'rdw_blocked'.",
-            ),
+            )
+            .with_choices(options::FRAMING_CHOICES)
+            .with_default("newline"),
             ArgSpec::column(
                 "compression",
                 -1,
                 "varchar",
                 "Compress the output: 'auto' (the default — gzip if the path ends '.gz', zstd if \
                  '.zst', else raw), 'none', 'gzip', or 'zstd'.",
-            ),
+            )
+            .with_choices(options::COMPRESSION_CHOICES)
+            .with_default("auto"),
             ArgSpec::column(
                 "endpoint",
                 -1,
@@ -168,7 +185,9 @@ impl CopyToFunction for CopyToFixed {
                 "varchar",
                 "S3 addressing for an `s3://` destination: 'path' (path-style, e.g. MinIO) or \
                  'vhost'.",
-            ),
+            )
+            .with_choices(options::URL_STYLE_CHOICES)
+            .with_default("vhost"),
             ArgSpec::column(
                 "use_ssl",
                 -1,

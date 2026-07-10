@@ -58,27 +58,35 @@ impl TableFunction for DescribeFixed {
              debug spec, fixed-width, OCCURS, DEPENDING ON",
         );
         tags.push(crate::meta::category("Layout Introspection"));
+        // VGI307/VGI321: a static result schema (the columns are the same for
+        // every call), declared as the structured `vgi.result_columns_schema`
+        // (one {name,type,description} per returned column). Mirrors `schema()`.
         tags.push((
-            "vgi.result_columns_md".into(),
-            "A **fixed** result schema — one row per field (group items and their children \
-             included):\n\n\
-             | column | type | description |\n\
-             |---|---|---|\n\
-             | `path` | VARCHAR | Dotted field path, e.g. `item.sku`. |\n\
-             | `depth` | BIGINT | Nesting level (0 at the top). |\n\
-             | `kind` | VARCHAR | Codec label, e.g. `text`, `int32 LE`, `comp-3`. |\n\
-             | `sql_type` | VARCHAR | The DuckDB column type the field maps to, e.g. `VARCHAR`, \
-             `DECIMAL(9,2)`, `STRUCT`, `BIGINT[]`. |\n\
-             | `byte_offset` | BIGINT | Static byte position within the record. |\n\
-             | `width` | BIGINT | Per-occurrence width in bytes. |\n\
-             | `occurs` | BIGINT | Declared repeat / OCCURS maximum, else NULL. |\n\
-             | `depending_on` | VARCHAR | Controlling field for `OCCURS … DEPENDING ON`, else \
-             NULL. |\n\n\
-             **Example usage:**\n\n\
-             ```sql\n\
-             SELECT path, sql_type, byte_offset, width\n\
-             FROM fixed.main.describe_fixed('name:A10 qty:9(5)');\n\
-             ```"
+            "vgi.result_columns_schema".into(),
+            r#"[
+  {"name": "path", "type": "VARCHAR", "description": "Dotted field path within the record, e.g. `item.sku`; group items and their children are each a row."},
+  {"name": "depth", "type": "BIGINT", "description": "Nesting level of the field (0 at the top level, deeper for group children)."},
+  {"name": "kind", "type": "VARCHAR", "description": "Codec label describing how the bytes are decoded, e.g. `text`, `int32 LE`, `comp-3`, `zoned`."},
+  {"name": "sql_type", "type": "VARCHAR", "description": "The DuckDB column type this field maps to, e.g. `VARCHAR`, `DECIMAL(9,2)`, `STRUCT`, `BIGINT[]`."},
+  {"name": "byte_offset", "type": "BIGINT", "description": "Static byte position of the field within the record (before any OCCURS DEPENDING ON table)."},
+  {"name": "width", "type": "BIGINT", "description": "Per-occurrence field width in bytes."},
+  {"name": "occurs", "type": "BIGINT", "description": "Declared repeat / OCCURS maximum for a repeating field, else NULL."},
+  {"name": "depending_on", "type": "VARCHAR", "description": "The controlling field name for an `OCCURS … DEPENDING ON` table, else NULL."}
+]"#
+            .into(),
+        ));
+        tags.push((
+            "vgi.example_queries".into(),
+            r#"[
+  {
+    "description": "Introspect a two-field template layout: show each field's DuckDB type, byte offset, and width.",
+    "sql": "SELECT path, sql_type, byte_offset, width FROM fixed.main.describe_fixed('name:A10 qty:9(5)') ORDER BY byte_offset"
+  },
+  {
+    "description": "Resolve a COBOL copybook (forcing the copybook format) and list only the repeating OCCURS fields.",
+    "sql": "SELECT path, sql_type, occurs FROM fixed.main.describe_fixed('01 REC. 05 SKU PIC X(8). 05 QTY PIC 9(3) OCCURS 4.', format => 'copybook') WHERE occurs IS NOT NULL"
+  }
+]"#
             .into(),
         ));
         FunctionMetadata {
@@ -105,7 +113,8 @@ impl TableFunction for DescribeFixed {
                 "varchar",
                 "Force how `spec` is interpreted: 'template', 'json', or 'copybook'. Omit to \
                  auto-detect.",
-            ),
+            )
+            .with_choices(options::FORMAT_CHOICES),
         ]
     }
 

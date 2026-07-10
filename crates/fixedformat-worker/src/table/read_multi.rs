@@ -3,7 +3,7 @@
 //! a discriminator field, returning one column `record` of Arrow type **sparse
 //! Union** (DuckDB `UNION(H STRUCT(…), D STRUCT(…), …)`).
 //!
-//! Each framed record's discriminator bytes pick a variant [`Layout`]
+//! Each framed record's discriminator bytes pick a variant `Layout`
 //! ([`MultiLayout::select`]); the record is decoded with that layout into a
 //! `Value::Struct`, and the batch is assembled as a sparse `UnionArray`: every
 //! variant's child `StructArray` is full record-batch length, holding the decoded
@@ -132,22 +132,37 @@ impl TableFunction for ReadMulti {
              type, union, copybook, flat file, mainframe, fixed-width",
         );
         tags.push(crate::meta::category("File Read & Write"));
+        // VGI307/VGI326: the result schema is dynamic (its single UNION column's
+        // variants are determined by the `spec`), so it is declared as
+        // `vgi.result_dynamic_columns_md` with a Name|Type|Description variant
+        // table. Runnable queries live in `vgi.example_queries` (not here) so the
+        // coverage/execution rules grade them.
         tags.push((
-            "vgi.result_columns_md".into(),
-            "A single column `record` of type **UNION** — one STRUCT variant per record type, named \
-             by the discriminator tag. Use `union_tag(record)` for the record type and \
-             `union_extract(record, '<tag>')` for a variant's STRUCT.\n\n\
-             **Example usage** (illustrative — scans a real file):\n\n\
-             ```sql\n\
-             SELECT union_tag(record) AS kind,\n\
-             \x20      union_extract(record, 'D').sku AS sku\n\
-             FROM fixed.main.read_multi('data/multi.dat',\n\
-             \x20 '{\"discriminator\":{\"offset\":0,\"width\":1},\n\
-             \x20   \"records\":{\"H\":[{\"name\":\"co\",\"type\":\"str\",\"width\":20}],\n\
-             \x20              \"D\":[{\"name\":\"sku\",\"type\":\"str\",\"width\":10},\n\
-             \x20                    {\"name\":\"qty\",\"type\":\"int\",\"digits\":5}],\n\
-             \x20              \"T\":[{\"name\":\"count\",\"type\":\"int\",\"digits\":6}]}}');\n\
-             ```"
+            "vgi.result_dynamic_columns_md".into(),
+            "The result is always a **single** column, `record`, whose UNION variants are \
+             determined by the multi-record `spec` argument — one STRUCT variant per record type, \
+             named by that record type's discriminator tag. Read a row's record type with \
+             `union_tag(record)` and pull a variant's STRUCT with `union_extract(record, \
+             '<tag>')`.\n\n\
+             For example, the header/detail/trailer spec used in the examples below (record types \
+             `H`, `D`, `T`) yields:\n\n\
+             | Name | Type | Description |\n\
+             |---|---|---|\n\
+             | `record` | UNION(H STRUCT(co VARCHAR), D STRUCT(sku VARCHAR, qty BIGINT), T STRUCT(cnt BIGINT)) | A sparse UNION with one STRUCT variant per record type in the spec — here `H` (header), `D` (detail), and `T` (trailer). |"
+                .into(),
+        ));
+        tags.push((
+            "vgi.example_queries".into(),
+            r#"[
+  {
+    "description": "Read a header/detail/trailer flat file into a UNION column and project the detail rows' sku and qty.",
+    "sql": "SELECT union_extract(record, 'D').sku AS sku, union_extract(record, 'D').qty AS qty FROM fixed.main.read_multi('data/multi.dat', '{\"discriminator\":{\"offset\":0,\"width\":1},\"records\":{\"H\":[{\"type\":\"filler\",\"width\":1},{\"name\":\"co\",\"type\":\"str\",\"width\":20}],\"D\":[{\"type\":\"filler\",\"width\":1},{\"name\":\"sku\",\"type\":\"str\",\"width\":10},{\"name\":\"qty\",\"type\":\"int\",\"digits\":5}],\"T\":[{\"type\":\"filler\",\"width\":1},{\"name\":\"cnt\",\"type\":\"int\",\"digits\":6}]}}') WHERE union_tag(record) = 'D' ORDER BY sku"
+  },
+  {
+    "description": "Count records of each type in a heterogeneous multi-record file.",
+    "sql": "SELECT union_tag(record) AS record_type, count(*) AS n FROM fixed.main.read_multi('data/multi.dat', '{\"discriminator\":{\"offset\":0,\"width\":1},\"records\":{\"H\":[{\"type\":\"filler\",\"width\":1},{\"name\":\"co\",\"type\":\"str\",\"width\":20}],\"D\":[{\"type\":\"filler\",\"width\":1},{\"name\":\"sku\",\"type\":\"str\",\"width\":10},{\"name\":\"qty\",\"type\":\"int\",\"digits\":5}],\"T\":[{\"type\":\"filler\",\"width\":1},{\"name\":\"cnt\",\"type\":\"int\",\"digits\":6}]}}') GROUP BY record_type ORDER BY record_type"
+  }
+]"#
             .into(),
         ));
         FunctionMetadata {
@@ -183,7 +198,9 @@ impl TableFunction for ReadMulti {
                 "varchar",
                 "Byte encoding of the file: 'ascii' (the default) or 'ebcdic' (CP037). The \
                  discriminator bytes are transcoded out of EBCDIC before matching.",
-            ),
+            )
+            .with_choices(options::ENCODING_CHOICES)
+            .with_default("ascii"),
             ArgSpec::const_arg(
                 "framing",
                 -1,
@@ -191,7 +208,9 @@ impl TableFunction for ReadMulti {
                 "How records are delimited: 'newline' (the default), 'fixed' (back-to-back \
                  equal-length records — every record type padded to a common length), 'rdw', or \
                  'rdw_blocked'.",
-            ),
+            )
+            .with_choices(options::FRAMING_CHOICES)
+            .with_default("newline"),
             ArgSpec::const_arg(
                 "record_length",
                 -1,
@@ -205,7 +224,9 @@ impl TableFunction for ReadMulti {
                 "varchar",
                 "Input compression: 'auto' (default — detect gzip/zstd from magic bytes), 'none', \
                  'gzip', or 'zstd'. Decompression happens before framing/decoding.",
-            ),
+            )
+            .with_choices(options::COMPRESSION_CHOICES)
+            .with_default("auto"),
             ArgSpec::const_arg(
                 "max_decompressed_bytes",
                 -1,

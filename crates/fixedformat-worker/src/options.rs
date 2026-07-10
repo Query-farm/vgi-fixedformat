@@ -13,6 +13,31 @@ fn ve(msg: impl Into<String>) -> RpcError {
     RpcError::value_error(msg.into())
 }
 
+// -- Machine-readable argument `choices` (VGI317) -------------------------------
+//
+// The canonical, documented value vocabularies for the enumerated option
+// arguments (`format`, `encoding`, `framing`, `compression`, `url_style`). They
+// are surfaced to agents via `ArgSpec::with_choices` so a caller can discover the
+// valid inputs. These are all declared on **named-only** arguments (position
+// `-1`), which the SDK does NOT hard-enforce at bind time (see
+// `vgi::function::validate_arg_constraints`), so they remain pure discovery
+// hints — the parsers (`Encoding::parse` / `Framing::parse` / `Compression::parse`)
+// additionally accept the documented aliases (e.g. `gz`, `vb`), a superset of
+// these canonical tokens, so listing the canonical set never rejects a valid
+// value. Kept here, next to the parsers they mirror, so metadata and behaviour
+// cannot drift.
+
+/// Accepted `format =>` spec-interpretation values (auto-detected when omitted).
+pub const FORMAT_CHOICES: [&str; 3] = ["template", "json", "copybook"];
+/// Accepted `encoding =>` byte-encoding values.
+pub const ENCODING_CHOICES: [&str; 2] = ["ascii", "ebcdic"];
+/// Accepted `framing =>` record-framing values.
+pub const FRAMING_CHOICES: [&str; 4] = ["newline", "fixed", "rdw", "rdw_blocked"];
+/// Accepted `compression =>` values (`auto` detects/derives the codec).
+pub const COMPRESSION_CHOICES: [&str; 4] = ["auto", "none", "gzip", "zstd"];
+/// Accepted `url_style =>` S3 addressing values.
+pub const URL_STYLE_CHOICES: [&str; 2] = ["path", "vhost"];
+
 /// Read the path argument at `pos` as one or more paths: a single VARCHAR yields
 /// one path; a `LIST(VARCHAR)` const yields each element (so `read_fixed` accepts
 /// both `'s3://b/x.dat'` and `['s3://b/x.dat','s3://c/y.dat']`). Non-string and
@@ -195,7 +220,9 @@ pub fn cloud_arg_specs() -> Vec<ArgSpec> {
             "varchar",
             "S3 addressing for an `s3://` path: 'path' (path-style, e.g. MinIO) or 'vhost' \
              (the default). Overrides a CREATE SECRET's URL_STYLE.",
-        ),
+        )
+        .with_choices(URL_STYLE_CHOICES)
+        .with_default("vhost"),
         ArgSpec::const_arg(
             "use_ssl",
             -1,

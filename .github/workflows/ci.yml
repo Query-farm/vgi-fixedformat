@@ -26,7 +26,7 @@ jobs:
     name: fmt · clippy · unit + proptest
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -53,7 +53,7 @@ jobs:
     name: SQLLogic e2e (haybarn)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -66,7 +66,7 @@ jobs:
           save-if: ${{ github.ref == 'refs/heads/main' }}
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v6
 
       - name: Install the haybarn unittest runner
         # Only `haybarn-unittest` is installed as a tool; `haybarn-cli` (used to
@@ -85,7 +85,7 @@ jobs:
     name: metadata quality (vgi-lint)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -102,7 +102,6 @@ jobs:
       - name: vgi-lint
         uses: Query-farm/vgi-lint-check@v1
         with:
-          version: "0.37.0"
           location: "${{ github.workspace }}/target/release/fixedformat-worker"
           fail-on: info
 
@@ -115,7 +114,7 @@ jobs:
     name: supply-chain audit (cargo-audit)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: cargo audit
         uses: rustsec/audit-check@v2
@@ -135,7 +134,7 @@ jobs:
     name: MSRV check (rust 1.90)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install Rust toolchain (pinned MSRV)
         uses: dtolnay/rust-toolchain@1.90
@@ -168,7 +167,7 @@ jobs:
       FIXEDFORMAT_S3_TEST_KEY_ID: minioadmin
       FIXEDFORMAT_S3_TEST_SECRET: minioadmin
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -214,7 +213,7 @@ jobs:
             s3 mb "s3://$FIXEDFORMAT_S3_TEST_BUCKET"
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v6
 
       - name: Install the haybarn unittest runner
         run: |

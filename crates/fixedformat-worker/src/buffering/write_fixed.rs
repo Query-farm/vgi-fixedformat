@@ -57,24 +57,29 @@ impl TableBufferingFunction for WriteFixed {
              RDW, rdw_blocked, COMP-3, relation to file, table function, sink",
         );
         tags.push(crate::meta::category("File Read & Write"));
+        // VGI307/VGI321: a static result schema — write_fixed always returns one
+        // summary row with these two columns (see `on_bind`).
         tags.push((
-            "vgi.result_columns_md".into(),
-            "| column | type | description |\n\
-             |---|---|---|\n\
-             | `rows_written` | BIGINT | Number of records written to the file. |\n\
-             | `bytes_written` | BIGINT | Total number of bytes written, including framing. |"
-                .into(),
+            "vgi.result_columns_schema".into(),
+            r#"[
+  {"name": "rows_written", "type": "BIGINT", "description": "Number of records written to the file."},
+  {"name": "bytes_written", "type": "BIGINT", "description": "Total number of bytes written to the file, including record framing and any compression."}
+]"#
+            .into(),
         ));
+        // Examples PROJECT the summary columns (not a bare SELECT *) and give
+        // each spec field a name that matches the input relation's column names,
+        // since write_fixed matches columns to layout fields BY NAME.
         tags.push((
             "vgi.example_queries".into(),
             r#"[
   {
-    "description": "Write a relation to a newline-framed fixed-width file (the default framing).",
-    "sql": "SELECT * FROM fixed.main.write_fixed((SELECT 'Jo' AS name, 7 AS id), '/tmp/out.dat', 'A2 N')"
+    "description": "Write two accounts to a newline-framed fixed-width file (10-char name, 5-digit quantity) and report how much was written.",
+    "sql": "SELECT rows_written, bytes_written FROM fixed.main.write_fixed((FROM (VALUES ('ALICE', 5), ('BOB', 999)) AS v(name, qty)), 'data/_example_write.dat', 'name:A10 qty:9(5)')"
   },
   {
-    "description": "Write back-to-back fixed-length records (no newline) by forcing the framing named argument.",
-    "sql": "SELECT * FROM fixed.main.write_fixed((SELECT 'Jo' AS name, 7 AS id), '/tmp/out.dat', 'A2 N', framing => 'fixed')"
+    "description": "Write back-to-back fixed-length records (no newline) by forcing the framing named argument, returning just the record count.",
+    "sql": "SELECT rows_written FROM fixed.main.write_fixed((FROM (VALUES ('ALICE', 5), ('BOB', 999)) AS v(name, qty)), 'data/_example_write.dat', 'name:A10 qty:9(5)', framing => 'fixed')"
   }
 ]"#
             .into(),
@@ -118,27 +123,34 @@ impl TableBufferingFunction for WriteFixed {
                 "varchar",
                 "Force how `spec` is interpreted: 'template', 'json', or 'copybook'. Omit to \
                  auto-detect.",
-            ),
+            )
+            .with_choices(options::FORMAT_CHOICES),
             ArgSpec::const_arg(
                 "encoding",
                 -1,
                 "varchar",
                 "Byte encoding to write: 'ascii' (the default) or 'ebcdic' (CP037).",
-            ),
+            )
+            .with_choices(options::ENCODING_CHOICES)
+            .with_default("ascii"),
             ArgSpec::const_arg(
                 "framing",
                 -1,
                 "varchar",
                 "How to delimit records in the output: 'newline' (the default), 'fixed', 'rdw', \
                  or 'rdw_blocked'.",
-            ),
+            )
+            .with_choices(options::FRAMING_CHOICES)
+            .with_default("newline"),
             ArgSpec::const_arg(
                 "compression",
                 -1,
                 "varchar",
                 "Compress the output: 'auto' (the default — gzip if the path ends '.gz', zstd if \
                  '.zst', else raw), 'none', 'gzip', or 'zstd'. The whole file is compressed.",
-            ),
+            )
+            .with_choices(options::COMPRESSION_CHOICES)
+            .with_default("auto"),
         ]
         .into_iter()
         .chain(options::cloud_arg_specs())

@@ -80,14 +80,25 @@ impl CopyFromFunction for CopyFixed {
              RDW, COMP-3, S3, table load, bulk load",
         );
         tags.push(crate::meta::category("COPY Integration"));
+        // VGI307/VGI326: `copy_fixed` is a COPY … FROM loader with no result set
+        // of its own — the "columns" it materializes are the COPY target table's
+        // own columns (dynamic, one per target column), so the result schema is
+        // declared as `vgi.result_dynamic_columns_md` with a representative table.
         tags.push((
-            "vgi.result_columns_md".into(),
-            "Returns **no result set** — this is a `COPY … FROM` loader. Rows decoded from the \
-             file are inserted into the COPY **target table**, and DuckDB reports the number of \
-             rows loaded as the statement's `Count`. The loaded columns are the target table's own \
-             columns: each decoded field is mapped to a target column **by position** and cast to \
-             that column's type, so the `spec` must produce the same number of columns in the same \
-             order as the table."
+            "vgi.result_dynamic_columns_md".into(),
+            "`copy_fixed` is invoked through `COPY <table> FROM '<path>' (FORMAT 'fixed.fixed', \
+             …)`, not as a table function, so it returns **no result set of its own**. The rows \
+             decoded from the file are inserted into the COPY **target table**, and DuckDB reports \
+             the number of rows loaded as the statement's `Count`. The materialized columns are \
+             therefore the target table's own columns — each decoded field is mapped to a target \
+             column **by position** and cast to that column's type, so the `spec` must produce the \
+             same number of columns, in the same order, as the table.\n\n\
+             For a target table `accounts(name VARCHAR, qty INTEGER)` loaded with the spec \
+             `name:A10 qty:9(5)`, the loaded columns are:\n\n\
+             | Name | Type | Description |\n\
+             |---|---|---|\n\
+             | `name` | VARCHAR | The target column populated from the first decoded field (bytes 0–9). |\n\
+             | `qty` | INTEGER | The target column populated from the second decoded field, cast from the 5-digit value. |"
                 .into(),
         ));
         FunctionMetadata {
@@ -119,20 +130,25 @@ impl CopyFromFunction for CopyFixed {
                 "varchar",
                 "Force how `spec` is interpreted: 'template', 'json', or 'copybook'. Omit to \
                  auto-detect.",
-            ),
+            )
+            .with_choices(options::FORMAT_CHOICES),
             ArgSpec::column(
                 "encoding",
                 -1,
                 "varchar",
                 "Byte encoding of the file: 'ascii' (the default) or 'ebcdic' (CP037).",
-            ),
+            )
+            .with_choices(options::ENCODING_CHOICES)
+            .with_default("ascii"),
             ArgSpec::column(
                 "framing",
                 -1,
                 "varchar",
                 "How records are delimited: 'newline' (the default), 'fixed', 'rdw', or \
                  'rdw_blocked'.",
-            ),
+            )
+            .with_choices(options::FRAMING_CHOICES)
+            .with_default("newline"),
             ArgSpec::column(
                 "record_length",
                 -1,
@@ -147,7 +163,9 @@ impl CopyFromFunction for CopyFixed {
                 "Input compression: 'auto' (the default — detect gzip/zstd from the file's magic \
                  bytes, else read raw), 'none', 'gzip', or 'zstd'. Applies to local and cloud \
                  paths alike; decompression happens before framing/decoding.",
-            ),
+            )
+            .with_choices(options::COMPRESSION_CHOICES)
+            .with_default("auto"),
             ArgSpec::column(
                 "max_decompressed_bytes",
                 -1,
@@ -174,7 +192,9 @@ impl CopyFromFunction for CopyFixed {
                 -1,
                 "varchar",
                 "S3 addressing for an `s3://` source: 'path' (path-style, e.g. MinIO) or 'vhost'.",
-            ),
+            )
+            .with_choices(options::URL_STYLE_CHOICES)
+            .with_default("vhost"),
             ArgSpec::column(
                 "use_ssl",
                 -1,

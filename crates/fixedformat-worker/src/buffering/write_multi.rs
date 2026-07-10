@@ -5,7 +5,7 @@
 //! The input relation has exactly ONE column: a sparse `UNION` whose variant
 //! names are the multi-record spec's discriminator tags (the exact shape
 //! `read_multi` emits). Each row's active variant gives `(tag, struct fields)`;
-//! the matching variant [`Layout`] encodes the fields to record bytes, the
+//! the matching variant `Layout` encodes the fields to record bytes, the
 //! discriminator field is stamped with the `tag` (a variant's discriminator
 //! position is usually a filler the encoder zero-fills), records are framed per
 //! `framing`, optionally compressed, and streamed to `path`. Returns one row:
@@ -113,13 +113,28 @@ impl TableBufferingFunction for WriteMulti {
              export, fixed-width file, flat file, emit, copybook, mainframe, EBCDIC, RDW, sink",
         );
         tags.push(crate::meta::category("File Read & Write"));
+        // VGI307/VGI321: a static result schema — write_multi always returns one
+        // summary row with these two columns (see `on_bind`).
         tags.push((
-            "vgi.result_columns_md".into(),
-            "| column | type | description |\n\
-             |---|---|---|\n\
-             | `rows_written` | BIGINT | Number of records written to the file. |\n\
-             | `bytes_written` | BIGINT | Total number of bytes written, including framing. |"
-                .into(),
+            "vgi.result_columns_schema".into(),
+            r#"[
+  {"name": "rows_written", "type": "BIGINT", "description": "Number of records written to the file across all record types."},
+  {"name": "bytes_written", "type": "BIGINT", "description": "Total number of bytes written to the file, including record framing and any compression."}
+]"#
+            .into(),
+        ));
+        // A demonstrable, runnable example: read a heterogeneous file into a UNION
+        // column with read_multi, then write it straight back out with write_multi
+        // (its inverse), reporting the summary counts.
+        tags.push((
+            "vgi.example_queries".into(),
+            r#"[
+  {
+    "description": "Round-trip a heterogeneous flat file: read it into a UNION column and write it back out to a new multi-record file, reporting the counts.",
+    "sql": "SELECT rows_written, bytes_written FROM fixed.main.write_multi((FROM fixed.main.read_multi('data/multi.dat', '{\"discriminator\":{\"offset\":0,\"width\":1},\"records\":{\"H\":[{\"type\":\"filler\",\"width\":1},{\"name\":\"co\",\"type\":\"str\",\"width\":20}],\"D\":[{\"type\":\"filler\",\"width\":1},{\"name\":\"sku\",\"type\":\"str\",\"width\":10},{\"name\":\"qty\",\"type\":\"int\",\"digits\":5}],\"T\":[{\"type\":\"filler\",\"width\":1},{\"name\":\"cnt\",\"type\":\"int\",\"digits\":6}]}}')), 'data/_example_multi_out.dat', '{\"discriminator\":{\"offset\":0,\"width\":1},\"records\":{\"H\":[{\"type\":\"filler\",\"width\":1},{\"name\":\"co\",\"type\":\"str\",\"width\":20}],\"D\":[{\"type\":\"filler\",\"width\":1},{\"name\":\"sku\",\"type\":\"str\",\"width\":10},{\"name\":\"qty\",\"type\":\"int\",\"digits\":5}],\"T\":[{\"type\":\"filler\",\"width\":1},{\"name\":\"cnt\",\"type\":\"int\",\"digits\":6}]}}')"
+  }
+]"#
+            .into(),
         ));
         FunctionMetadata {
             description: "Write a relation's UNION column to a multi-record-type file (inverse of \
@@ -163,21 +178,27 @@ impl TableBufferingFunction for WriteMulti {
                 "varchar",
                 "Byte encoding to write: 'ascii' (the default) or 'ebcdic' (CP037). The \
                  discriminator tag is transcoded to this encoding.",
-            ),
+            )
+            .with_choices(options::ENCODING_CHOICES)
+            .with_default("ascii"),
             ArgSpec::const_arg(
                 "framing",
                 -1,
                 "varchar",
                 "How to delimit records in the output: 'newline' (the default), 'fixed', 'rdw', \
                  or 'rdw_blocked'.",
-            ),
+            )
+            .with_choices(options::FRAMING_CHOICES)
+            .with_default("newline"),
             ArgSpec::const_arg(
                 "compression",
                 -1,
                 "varchar",
                 "Compress the output: 'auto' (the default — gzip if the path ends '.gz', zstd if \
                  '.zst', else raw), 'none', 'gzip', or 'zstd'. The whole file is compressed.",
-            ),
+            )
+            .with_choices(options::COMPRESSION_CHOICES)
+            .with_default("auto"),
         ]
         .into_iter()
         .chain(options::cloud_arg_specs())

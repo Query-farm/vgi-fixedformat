@@ -18,7 +18,10 @@ use std::future::Future;
 use std::sync::{Arc, OnceLock};
 
 use object_store::path::Path as ObjPath;
-use object_store::{ObjectStore, PutPayload};
+// object_store 0.14 moved the `head` / `get_range` / `put` convenience methods
+// off the `ObjectStore` trait onto the `ObjectStoreExt` extension trait; bring
+// it into scope so those call sites (cloud.rs) still resolve.
+use object_store::{ObjectStore, ObjectStoreExt, PutPayload};
 use percent_encoding::{percent_decode_str, utf8_percent_encode, AsciiSet, CONTROLS};
 use url::Url;
 use vgi::secrets::{SecretLookup, Secrets};

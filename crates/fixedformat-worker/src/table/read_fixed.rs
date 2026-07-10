@@ -69,40 +69,46 @@ impl TableFunction for ReadFixed {
              RDW, rdw_blocked, record_length, COMP-3, glob, file to rows, table function",
         );
         tags.push(crate::meta::category("File Read & Write"));
+        // VGI307/VGI326: the result columns are dynamic — one per top-level field
+        // of the layout `spec` — so the schema is declared as
+        // `vgi.result_dynamic_columns_md`, with a representative Name|Type|
+        // Description variant table plus the field-kind → type mapping. Runnable
+        // queries live in `vgi.example_queries` below (kept out of here so the
+        // coverage/execution rules grade them).
         tags.push((
-            "vgi.result_columns_md".into(),
-            "The returned columns are **dynamic** — they are determined by the layout `spec` \
-             argument, one column per top-level field. Column names come from the field names in \
-             the spec — name your fields (e.g. `name:A10 qty:9(5)`); **unnamed** template fields \
-             become positional `field_1`, `field_2`, … — and types follow the field kinds:\n\n\
-             | spec field kind | column type |\n\
-             |---|---|\n\
-             | text / hex | VARCHAR |\n\
-             | integer | BIGINT |\n\
-             | float / double | REAL / DOUBLE |\n\
-             | COMP-3 / zoned / implied-point decimal | DECIMAL(p,s) |\n\
-             | `?` boolean | BOOLEAN |\n\
-             | OCCURS / repeat | LIST of the element type |\n\
-             | group / REDEFINES | STRUCT of the child fields |\n\n\
-             **Example usage** (illustrative — these scan real files, so they are not run in the \
-             lint sandbox):\n\n\
-             ```sql\n\
-             -- Glob several files; columns name VARCHAR, id BIGINT:\n\
-             SELECT * FROM fixed.main.read_fixed('/data/*.dat', 'A10 N');\n\n\
-             -- Fixed framing, 16-byte records; an OCCURS spec yields a LIST column:\n\
-             SELECT * FROM fixed.main.read_fixed('/data/cust.dat', 'A10 9(3) OCCURS 2',\n\
-             \x20                               framing => 'fixed', record_length => 16);\n\n\
-             -- A COBOL copybook with a nested group yields a STRUCT column:\n\
-             SELECT * FROM fixed.main.read_fixed('/data/recs.bin', '<copybook text>',\n\
-             \x20                               format => 'copybook', encoding => 'ebcdic');\n\
-             ```"
+            "vgi.result_dynamic_columns_md".into(),
+            "The returned columns are **dynamic** — determined by the layout `spec`, one column \
+             per top-level field. Column names come from the field names in the spec — name your \
+             fields (e.g. `name:A10 qty:9(5)`); **unnamed** template fields become positional \
+             `field_1`, `field_2`, …. Column types follow the field kind: text/hex → `VARCHAR`, \
+             integer → `BIGINT`, float/double → `REAL`/`DOUBLE`, COMP-3 / zoned / implied-point \
+             decimal → `DECIMAL(p,s)`, `?` boolean → `BOOLEAN`, OCCURS / repeat → `LIST` of the \
+             element type, and group / REDEFINES → `STRUCT` of the child fields.\n\n\
+             For the spec `name:A10 qty:9(5)` the result columns are:\n\n\
+             | Name | Type | Description |\n\
+             |---|---|---|\n\
+             | `name` | VARCHAR | The 10-byte text field decoded from bytes 0–9. |\n\
+             | `qty` | BIGINT | The 5-digit zoned integer decoded from bytes 10–14. |\n\n\
+             For the single-field spec `id:9(7)` the result is one column:\n\n\
+             | Name | Type | Description |\n\
+             |---|---|---|\n\
+             | `id` | BIGINT | The 7-digit zoned integer decoded from bytes 0–6. |"
+                .into(),
+        ));
+        tags.push((
+            "vgi.example_queries".into(),
+            r#"[
+  {
+    "description": "Profile a newline-delimited fixed-width feed of 7-digit ids: count the rows and report the id range.",
+    "sql": "SELECT count(*) AS records, min(id) AS min_id, max(id) AS max_id FROM fixed.main.read_fixed('data/large.dat', 'id:9(7)')"
+  },
+  {
+    "description": "Glob several account files (10-char name, 5-digit qty) and total the quantity across every record.",
+    "sql": "SELECT sum(qty) AS total_qty FROM fixed.main.read_fixed('data/acct*.dat', 'name:A10 qty:9(5)')"
+  }
+]"#
             .into(),
         ));
-        // NOTE: no `vgi.example_queries` here. `read_fixed` always scans an
-        // external file, so any example returns zero rows in an environment
-        // without the data file present (VGI902). The documented usage lives in
-        // `vgi.doc_md` / the schema example queries / executable_examples; the
-        // returned columns are documented via `vgi.result_columns_md` above.
         FunctionMetadata {
             description: "Read a fixed-width file (template / JSON / copybook spec) into rows"
                 .into(),
@@ -146,20 +152,25 @@ impl TableFunction for ReadFixed {
                 "varchar",
                 "Force how `spec` is interpreted: 'template', 'json', or 'copybook'. Omit to \
                  auto-detect.",
-            ),
+            )
+            .with_choices(options::FORMAT_CHOICES),
             ArgSpec::const_arg(
                 "encoding",
                 -1,
                 "varchar",
                 "Byte encoding of the file: 'ascii' (the default) or 'ebcdic' (CP037).",
-            ),
+            )
+            .with_choices(options::ENCODING_CHOICES)
+            .with_default("ascii"),
             ArgSpec::const_arg(
                 "framing",
                 -1,
                 "varchar",
                 "How records are delimited in the file: 'newline' (the default), 'fixed' \
                  (back-to-back records of equal length), 'rdw', or 'rdw_blocked'.",
-            ),
+            )
+            .with_choices(options::FRAMING_CHOICES)
+            .with_default("newline"),
             ArgSpec::const_arg(
                 "record_length",
                 -1,
@@ -175,7 +186,9 @@ impl TableFunction for ReadFixed {
                 "Input compression: 'auto' (the default — detect gzip/zstd from the file's magic \
                  bytes, else read raw), 'none', 'gzip', or 'zstd'. Applies to local and cloud \
                  paths alike; decompression happens before framing/decoding.",
-            ),
+            )
+            .with_choices(options::COMPRESSION_CHOICES)
+            .with_default("auto"),
             ArgSpec::const_arg(
                 "max_decompressed_bytes",
                 -1,
