@@ -16,7 +16,7 @@ repository = "https://github.com/Query-farm/vgi-fixedformat"
 # and the table-buffering two-phase secret-bind path write_fixed needs for cloud
 # writes. Keep arrow/vgi-rpc in lockstep with vgi's pins so a single arrow/vgi-rpc
 # resolves.
-vgi = "0.17.0"
+vgi = "0.20.0"
 vgi-rpc = { version = "0.11.0", default-features = false, features = ["macros", "http"] }
 arrow = { version = "59", default-features = false, features = ["ipc"] }
 arrow-array = "59"

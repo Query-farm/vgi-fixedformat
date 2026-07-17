@@ -870,7 +870,7 @@ dependencies = [
  "tokio",
  "url",
  "vgi",
- "vgi-rpc",
+ "vgi-rpc 0.11.0",
 ]
 
 [[package]]
@@ -2861,9 +2861,9 @@ checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 
 [[package]]
 name = "vgi"
-version = "0.17.0"
+version = "0.20.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "07111b3a0584a92b783dd74e80c5c0f36b650501fb9166623bcd79fdcda68cf6"
+checksum = "9bbba82953da4cebaf3f77150982bf7d51b5cf25db684be05bd40e467446b673"
 dependencies = [
  "arrow",
  "arrow-arith",
@@ -2883,7 +2883,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tokio",
- "vgi-rpc",
+ "vgi-rpc 0.13.0",
 ]
 
 [[package]]
@@ -2907,6 +2907,42 @@ dependencies = [
  "chrono",
  "flatbuffers",
  "hmac",
+ "rand 0.8.6",
+ "rust_decimal",
+ "serde",
+ "serde_json",
+ "sha2",
+ "thiserror",
+ "tokio",
+ "tower-http",
+ "tracing",
+ "url",
+ "vgi-rpc-macros 0.11.0",
+ "zstd",
+]
+
+[[package]]
+name = "vgi-rpc"
+version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2899dedf53ddddbca06d53e9347ae3ee2a6510c883bb124afd8abcb7299587e0"
+dependencies = [
+ "arrow-array",
+ "arrow-buffer",
+ "arrow-cast",
+ "arrow-data",
+ "arrow-ipc",
+ "arrow-schema",
+ "arrow-select",
+ "axum",
+ "base64",
+ "bincode",
+ "bytes",
+ "chacha20poly1305",
+ "chrono",
+ "flatbuffers",
+ "flate2",
+ "hmac",
  "libc",
  "rand 0.8.6",
  "rust_decimal",
@@ -2918,7 +2954,7 @@ dependencies = [
  "tower-http",
  "tracing",
  "url",
- "vgi-rpc-macros",
+ "vgi-rpc-macros 0.13.0",
  "windows-sys 0.59.0",
  "zstd",
 ]
@@ -2928,6 +2964,17 @@ name = "vgi-rpc-macros"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "404c27b33e69c9f6f8af9143a3f60d59b6d14b8c317aa5356aea1dfb696cc03f"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "vgi-rpc-macros"
+version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7369bdc0f731673235922b3d2e1943ecedc04d47bf05680207897f6631088867"
 dependencies = [
  "proc-macro2",
  "quote",
