@@ -17,7 +17,7 @@ repository = "https://github.com/Query-farm/vgi-fixedformat"
 # writes. Keep arrow/vgi-rpc in lockstep with vgi's pins so a single arrow/vgi-rpc
 # resolves.
 vgi = "0.17.0"
-vgi-rpc = { version = "0.11.0", default-features = false, features = ["macros", "http"] }
+vgi-rpc = { version = "0.13.0", default-features = false, features = ["macros", "http"] }
 arrow = { version = "59", default-features = false, features = ["ipc"] }
 arrow-array = "59"
 arrow-buffer = "59"
