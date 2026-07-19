@@ -4,6 +4,30 @@ All notable changes to `vgi-fixedformat` are documented here. The format is
 based on [Keep a Changelog](https://keepachangelog.com/), and the project follows
 [Semantic Versioning](https://semver.org/).
 
+## [0.9.0] — vgi 0.21 & metadata conformance
+
+### Removed
+- **`fixed.main.fixedformat_version()`** — the worker-version scalar is gone,
+  along with the "Worker Metadata" catalog category. **Breaking:** any query
+  calling it must be updated; the attached extension's own version reporting
+  covers this need.
+
+### Changed
+- **VGI SDK bumped to `vgi 0.21.0` / `vgi-rpc 0.14.2`** (from 0.17.0 / 0.11.0).
+  `arrow` stays on 59 — vgi 0.21 still pins `^59`, and a single arrow 59.1.0
+  resolves. No worker source changes were required by the bump itself.
+- `vgi.example_queries` is now a JSON list of `{description, sql}` objects
+  (VGI515) rather than newline-joined SQL, and type names are backtick-quoted
+  throughout the catalog metadata prose.
+- Assorted dependency updates within semver: `object_store` 0.14.1, `tokio`
+  1.53.0, `futures` 0.3.33, `serde` 1.0.229, `rustls` 0.23.42.
+
+### Fixed
+- Escaping of the `\x00` byte literals in the `pack_fixed` EBCDIC example query.
+- `cargo audit` no longer ignores RUSTSEC-2026-0194 / RUSTSEC-2026-0195: the
+  `object_store` 0.14.1 bump pulls `quick-xml` 0.41.0, which carries the fix, so
+  regressions in those advisories fail CI again.
+
 ## [0.8.0] — template groups & count-prefix
 
 ### Added
