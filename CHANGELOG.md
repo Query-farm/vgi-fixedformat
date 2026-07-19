@@ -4,6 +4,29 @@ All notable changes to `vgi-fixedformat` are documented here. The format is
 based on [Keep a Changelog](https://keepachangelog.com/), and the project follows
 [Semantic Versioning](https://semver.org/).
 
+## [0.9.1] — vgi-lint conformance
+
+`0.9.0` was tagged but never published: its CI run failed the `vgi-lint`
+metadata-quality gate, so the release job was skipped and no binaries were
+attached. `0.9.1` is `0.9.0` plus the fixes below — use it instead.
+
+### Fixed
+- **VGI515** — `pack_fixed` / `unpack_fixed` no longer set the native
+  `FunctionMetadata::examples` field. Both arity overloads register under a
+  single function name, so one arity's native example surfaced on the other as a
+  description-less duplicate. Examples now live solely in the
+  `vgi.example_queries` tag, which carries a description per query.
+- **VGI509** — the `fixed` schema now ships a `vgi.executable_examples` tag:
+  three guaranteed-runnable, catalog-qualified examples (an unpack/pack
+  round-trip, a `describe_fixed` introspection, and a `write_fixed` →
+  `read_fixed` file round-trip), verified by `vgi-lint --execute`.
+
+Catalog Quality Score is back to 100/100 with zero findings at `--fail-on info`.
+
+### Changed
+- `vgi` / `vgi-rpc` requirements widened to `"0"`; `Cargo.lock` continues to pin
+  0.21.0 / 0.14.2.
+
 ## [0.9.0] — vgi 0.21 & metadata conformance
 
 ### Removed
