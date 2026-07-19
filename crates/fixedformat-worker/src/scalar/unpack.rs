@@ -56,7 +56,7 @@ fn example_queries_json_with_encoding() -> String {
   },
   {
     "description": "Unpack an EBCDIC (CP037) record; the encoding also governs zoned/COMP-3 sign nibbles.",
-    "sql": "SELECT fixed.main.unpack_fixed(rec, 'A8 N', 'ebcdic') FROM (SELECT 'JohnDoe \x00\x00\x00\x2A'::BLOB AS rec)"
+    "sql": "SELECT fixed.main.unpack_fixed(rec, 'A8 N', 'ebcdic') FROM (SELECT 'JohnDoe \\x00\\x00\\x00\\x2A'::BLOB AS rec)"
   }
 ]"#
     .to_string()
@@ -73,10 +73,10 @@ impl ScalarFunction for Unpack {
         // The two arity overloads register under the same name; give each a
         // distinct description and example so they don't collide (VGI120).
         let description = if self.with_encoding {
-            "Parse a fixed-width record into a STRUCT using the given layout spec and byte \
+            "Parse a fixed-width record into a `STRUCT` using the given layout spec and byte \
              encoding (ascii or ebcdic)"
         } else {
-            "Parse a fixed-width record into a STRUCT using the given layout spec (template / \
+            "Parse a fixed-width record into a `STRUCT` using the given layout spec (template / \
              JSON / copybook), assuming ASCII bytes"
         };
         let example = if self.with_encoding {
@@ -84,7 +84,7 @@ impl ScalarFunction for Unpack {
                 sql: "SELECT fixed.main.unpack_fixed(rec, 'A8 N', 'ebcdic') FROM (SELECT \
                       'JohnDoe \\x00\\x00\\x00\\x2A'::BLOB AS rec);"
                     .into(),
-                description: "Parse an EBCDIC-encoded record into a STRUCT.".into(),
+                description: "Parse an EBCDIC-encoded record into a `STRUCT`.".into(),
                 expected_output: None,
             }
         } else {
@@ -92,7 +92,7 @@ impl ScalarFunction for Unpack {
                 sql: "SELECT fixed.main.unpack_fixed('JohnDoe \\x00\\x00\\x00\\x2A'::BLOB, \
                       'A8 N');"
                     .into(),
-                description: "Parse an 8-char name plus a big-endian 32-bit id into a STRUCT."
+                description: "Parse an 8-char name plus a big-endian 32-bit id into a `STRUCT`."
                     .into(),
                 expected_output: None,
             }
@@ -100,19 +100,19 @@ impl ScalarFunction for Unpack {
         let mut tags = if self.with_encoding {
             crate::meta::object_tags(
                 "Unpack Fixed-Width Record (with encoding)",
-                "Decode a single fixed-width / flat-file record (a VARCHAR or BLOB) into a typed \
-                 STRUCT whose fields are named and typed by the layout spec, controlling the byte \
+                "Decode a single fixed-width / flat-file record (a `VARCHAR` or `BLOB`) into a typed \
+                 `STRUCT` whose fields are named and typed by the layout spec, controlling the byte \
                  `encoding`. This 3-argument overload adds a positional `encoding` argument: \
                  'ascii' (the default) or 'ebcdic' (CP037). EBCDIC affects not only character \
                  fields but also the sign nibbles of zoned and COMP-3 (packed-decimal) numbers. \
                  The spec is a Perl/Python `unpack` template string, a JSON field list, or a COBOL \
                  copybook (auto-detected), and supports packed/zoned decimals, OCCURS lists (→ \
-                 LIST), groups and REDEFINES (→ STRUCT). In a template spec, prefix each field \
-                 with a name to set its STRUCT field name, e.g. `'name:A10 qty:9(5)'`; unnamed \
+                 `LIST`), groups and REDEFINES (→ `STRUCT`). In a template spec, prefix each field \
+                 with a name to set its `STRUCT` field name, e.g. `'name:A10 qty:9(5)'`; unnamed \
                  fields become `field_1`, `field_2`, …. The spec is a bind-time constant so the \
-                 STRUCT output type is known at plan time. This is the inverse of pack_fixed when \
+                 `STRUCT` output type is known at plan time. This is the inverse of pack_fixed when \
                  the same encoding is supplied to both.",
-                "Parse a fixed-width record into a STRUCT under an explicit byte encoding, e.g. \
+                "Parse a fixed-width record into a `STRUCT` under an explicit byte encoding, e.g. \
                  `unpack_fixed(rec, 'A8 N', 'ebcdic')`. The third argument is `encoding` — 'ascii' \
                  (default) or 'ebcdic' (CP037), which also governs zoned/COMP-3 sign nibbles. It \
                  is positional, not named.",
@@ -122,16 +122,16 @@ impl ScalarFunction for Unpack {
         } else {
             crate::meta::object_tags(
                 "Unpack Fixed-Width Record",
-                "Decode a single fixed-width / flat-file record (a VARCHAR or BLOB) into a typed \
-                 STRUCT whose fields are named and typed by the layout spec, assuming ASCII bytes \
+                "Decode a single fixed-width / flat-file record (a `VARCHAR` or `BLOB`) into a typed \
+                 `STRUCT` whose fields are named and typed by the layout spec, assuming ASCII bytes \
                  (use the 3-argument overload to decode EBCDIC). The spec is a Perl/Python \
                  `unpack` template string, a JSON field list, or a COBOL copybook (auto-detected), \
-                 and supports packed/zoned decimals, OCCURS lists (→ LIST), groups and REDEFINES \
-                 (→ STRUCT). In a template spec, prefix each field with a name to set its STRUCT \
+                 and supports packed/zoned decimals, OCCURS lists (→ `LIST`), groups and REDEFINES \
+                 (→ `STRUCT`). In a template spec, prefix each field with a name to set its `STRUCT` \
                  field name, e.g. `'name:A10 qty:9(5)'`; unnamed fields become `field_1`, \
-                 `field_2`, …. The spec is a bind-time constant so the STRUCT output type is known \
+                 `field_2`, …. The spec is a bind-time constant so the `STRUCT` output type is known \
                  at plan time. This is the inverse of pack_fixed.",
-                "Parse a fixed-width ASCII record into a STRUCT, e.g. \
+                "Parse a fixed-width ASCII record into a `STRUCT`, e.g. \
                  `unpack_fixed('JohnDoe ...', 'A8 N')`. The layout spec is a template string, JSON \
                  spec, or COBOL copybook. To decode EBCDIC, use the 3-argument overload with an \
                  `encoding` argument.",
@@ -168,7 +168,7 @@ impl ScalarFunction for Unpack {
                 "varchar",
                 "The layout describing the record's fields: a Perl/Python `unpack` template \
                  string (e.g. 'A8 N'), a JSON field list, or a COBOL copybook. The format is \
-                 auto-detected. Determines the STRUCT field names and types.",
+                 auto-detected. Determines the `STRUCT` field names and types.",
             ),
         ];
         if self.with_encoding {

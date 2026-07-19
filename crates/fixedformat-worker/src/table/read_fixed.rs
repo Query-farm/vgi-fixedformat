@@ -54,8 +54,8 @@ impl TableFunction for ReadFixed {
              is only used for 'fixed' framing (back-to-back records of equal length) and defaults \
              to the length implied by the `spec`; it is ignored for the other framings. `format`, \
              `encoding`, `framing`, and `record_length` are all NAMED arguments. The returned \
-             column set is dynamic: it is determined by the spec, with OCCURS becoming LIST \
-             columns and groups / REDEFINES becoming STRUCT columns. Use it to ingest mainframe or \
+             column set is dynamic: it is determined by the spec, with OCCURS becoming `LIST` \
+             columns and groups / REDEFINES becoming `STRUCT` columns. Use it to ingest mainframe or \
              legacy flat-file data into SQL. This is the file-scanning counterpart of unpack_fixed \
              and the inverse of write_fixed.",
             "Scan a fixed-width file into rows, decoding each record per the layout `spec` \
@@ -64,7 +64,7 @@ impl TableFunction for ReadFixed {
              Optional NAMED args: `format =>`, `encoding =>` ('ascii'/'ebcdic'), `framing =>` \
              ('newline'/'fixed'/'rdw'/'rdw_blocked'), and `record_length =>` (per-record length in \
              bytes, used only for `fixed` framing). The returned columns are dynamic — they depend \
-             on the spec, with OCCURS → LIST and group/REDEFINES → STRUCT.",
+             on the spec, with OCCURS → `LIST` and group/REDEFINES → `STRUCT`.",
             "read fixed, scan, fixed-width file, flat file, ingest, copybook, mainframe, EBCDIC, \
              RDW, rdw_blocked, record_length, COMP-3, glob, file to rows, table function",
         );
@@ -87,12 +87,12 @@ impl TableFunction for ReadFixed {
              For the spec `name:A10 qty:9(5)` the result columns are:\n\n\
              | Name | Type | Description |\n\
              |---|---|---|\n\
-             | `name` | VARCHAR | The 10-byte text field decoded from bytes 0–9. |\n\
-             | `qty` | BIGINT | The 5-digit zoned integer decoded from bytes 10–14. |\n\n\
+             | `name` | `VARCHAR` | The 10-byte text field decoded from bytes 0–9. |\n\
+             | `qty` | `BIGINT` | The 5-digit zoned integer decoded from bytes 10–14. |\n\n\
              For the single-field spec `id:9(7)` the result is one column:\n\n\
              | Name | Type | Description |\n\
              |---|---|---|\n\
-             | `id` | BIGINT | The 7-digit zoned integer decoded from bytes 0–6. |"
+             | `id` | `BIGINT` | The 7-digit zoned integer decoded from bytes 0–6. |"
                 .into(),
         ));
         tags.push((

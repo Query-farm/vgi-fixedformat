@@ -56,12 +56,12 @@ fn catalog_metadata(name: &str) -> CatalogModel {
                 "Parse and format fixed-width / flat-file records directly in SQL, with no \
                  external ETL step. A layout spec describes how a record's bytes map to typed \
                  columns; from it the worker can decode a record string or blob into a typed \
-                 STRUCT, re-encode a STRUCT back to the original record bytes, scan or write whole \
-                 fixed-width files (local, `s3://`, or `http(s)://`), and introspect how a spec \
-                 resolves before touching data. Layouts are given three interchangeable, \
+                 `STRUCT`, re-encode a `STRUCT` back to the original record bytes, scan or write \
+                 whole fixed-width files (local, `s3://`, or `http(s)://`), and introspect how a \
+                 spec resolves before touching data. Layouts are given three interchangeable, \
                  auto-detected ways: Perl/Python `unpack` template strings, JSON field specs \
-                 (which may nest a `fields` array for STRUCT / LIST-of-STRUCT sub-records), or \
-                 COBOL copybooks. They support ASCII or EBCDIC (CP037) encoding; packed (COMP-3), \
+                 (which may nest a `fields` array for `STRUCT` / `LIST`-of-`STRUCT` sub-records), \
+                 or COBOL copybooks. They support ASCII or EBCDIC (CP037) encoding; packed (COMP-3), \
                  zoned, and implied-point decimals; nested groups, REDEFINES, and OCCURS / \
                  `OCCURS … DEPENDING ON` variable-length tables; heterogeneous multi-record-type \
                  files selected by a discriminator (a UNION per record type); and four \
@@ -82,16 +82,17 @@ fn catalog_metadata(name: &str) -> CatalogModel {
                  external ETL step.\n\nA layout spec is given in one of three auto-detected \
                  formats — a Perl/Python `unpack` **template** string (e.g. `A10 N s>`), a **JSON** \
                  field list, or a COBOL **copybook** — and maps each field to a typed column \
-                 (BIGINT / REAL / DOUBLE / VARCHAR / BOOLEAN, `DECIMAL(p,s)` for COMP-3 / zoned / \
-                 implied-point numbers, LIST for `OCCURS` / `OCCURS … DEPENDING ON`, STRUCT for \
-                 groups, nested JSON `fields`, and REDEFINES). \
+                 (`BIGINT` / `REAL` / `DOUBLE` / `VARCHAR` / `BOOLEAN`, `DECIMAL(p,s)` for \
+                 COMP-3 / zoned / implied-point numbers, `LIST` for `OCCURS` / \
+                 `OCCURS … DEPENDING ON`, `STRUCT` for groups, nested JSON `fields`, and \
+                 REDEFINES). \
                  Encodings are `ascii` (default) or `ebcdic` (CP037); record framing is `newline` \
                  (default), `fixed`, `rdw`, or `rdw_blocked`. The spec format is auto-detected from \
                  the spec text; on the table functions you can force it with `format =>` \
                  ('template' / 'json' / 'copybook') when a layout would otherwise be ambiguous. \
                  With the defaults (newline framing, ascii encoding) the common call is just \
-                 `(record, spec)`.\n\nDecoding a record into a STRUCT and re-encoding that STRUCT \
-                 back to bytes are exact inverses, and whole files can be scanned, written, or \
+                 `(record, spec)`.\n\nDecoding a record into a `STRUCT` and re-encoding that \
+                 `STRUCT` back to bytes are exact inverses, and whole files can be scanned, written, or \
                  introspected — including heterogeneous multi-record-type files (a UNION per \
                  record type) — without leaving SQL."
                     .to_string(),
@@ -177,13 +178,6 @@ fn catalog_metadata(name: &str) -> CatalogModel {
                         "SELECT rows_written, bytes_written FROM fixed.main.write_fixed(\
                          (FROM (VALUES ('ALICE', 5), ('BOB', 999)) AS v(name, qty)), \
                          'data/_agent_write.dat', 'name:A10 qty:9(5)')",
-                    ),
-                    (
-                        "worker_version",
-                        "Before relying on the fixed-format worker in a pipeline, an analyst wants \
-                         to record which build is attached. Return the worker's version string as \
-                         a single row with one column named version.",
-                        "SELECT fixed.main.fixedformat_version() AS version",
                     ),
                     (
                         "describe_fixed_offset",
@@ -331,7 +325,7 @@ fn catalog_metadata(name: &str) -> CatalogModel {
                 (
                     "vgi.categories".to_string(),
                     "[{\"name\":\"Encode & Decode\",\"description\":\"Decode a single record \
-                     into a typed STRUCT and encode a STRUCT back into record bytes (the exact \
+                     into a typed `STRUCT` and encode a `STRUCT` back into record bytes (the exact \
                      inverse), including heterogeneous multi-record UNION values.\"},\
                      {\"name\":\"File Read & Write\",\"description\":\"Scan whole fixed-width \
                      files into rows and write relations back out to fixed-width files, local or \
@@ -340,25 +334,23 @@ fn catalog_metadata(name: &str) -> CatalogModel {
                      fixed-width files through DuckDB's COPY … FROM / COPY … TO statements.\"},\
                      {\"name\":\"Layout Introspection\",\"description\":\"Inspect how a layout \
                      spec resolves — fields, types, byte offsets, OCCURS — without reading any \
-                     data.\"},\
-                     {\"name\":\"Worker Metadata\",\"description\":\"Report information about \
-                     the worker itself, such as its version.\"}]"
+                     data.\"}]"
                         .to_string(),
                 ),
                 (
                     "vgi.doc_llm".to_string(),
                     "Functions for working with fixed-width / flat-file records in SQL: decode a \
-                     record into a typed STRUCT, encode a STRUCT back into record bytes (the exact \
-                     inverse), scan a fixed-width file into rows, write a relation to a \
+                     record into a typed `STRUCT`, encode a `STRUCT` back into record bytes (the \
+                     exact inverse), scan a fixed-width file into rows, write a relation to a \
                      fixed-width file, decode or emit heterogeneous multi-record-type files (a \
                      UNION per record type, selected by a discriminator), and introspect how a \
                      spec resolves (fields, types, byte offsets) without reading data. Layouts are \
                      template strings, JSON specs (which may nest a `fields` array for \
-                     STRUCT/LIST-of-STRUCT sub-records), or COBOL copybooks (auto-detected; force \
-                     with `format =>` on the table functions). Field kinds map to columns as \
-                     text/hex → VARCHAR, integers → BIGINT, COMP-3/zoned/implied-point → \
-                     DECIMAL(p,s), OCCURS and OCCURS DEPENDING ON → LIST, \
-                     group/nested-fields/REDEFINES → STRUCT. Encodings are ascii (default) or \
+                     `STRUCT`/`LIST`-of-`STRUCT` sub-records), or COBOL copybooks (auto-detected; \
+                     force with `format =>` on the table functions). Field kinds map to columns as \
+                     text/hex → `VARCHAR`, integers → `BIGINT`, COMP-3/zoned/implied-point → \
+                     `DECIMAL(p,s)`, OCCURS and OCCURS DEPENDING ON → `LIST`, \
+                     group/nested-fields/REDEFINES → `STRUCT`. Encodings are ascii (default) or \
                      ebcdic (CP037); framing is newline (default), fixed, rdw, or rdw_blocked. \
                      With the defaults the common call is just `(record, spec)`."
                         .to_string(),
@@ -368,33 +360,51 @@ fn catalog_metadata(name: &str) -> CatalogModel {
                     "# fixed.main\n\nThe single (and only) schema for the `fixed` worker — the \
                      catalog name matches the `ATTACH` name, so qualify calls as \
                      `fixed.main.<fn>(...)`.\n\nIt provides functions for parsing a record into a \
-                     STRUCT and encoding a STRUCT back to bytes (an exact inverse pair), scanning \
-                     and emitting whole fixed-width files (including heterogeneous \
+                     `STRUCT` and encoding a `STRUCT` back to bytes (an exact inverse pair), \
+                     scanning and emitting whole fixed-width files (including heterogeneous \
                      multi-record-type files as a UNION per record type), and introspecting a \
                      layout — one row per field with its dotted path, type, byte offset, width, \
                      and OCCURS info — without reading data.\n\nLayouts are given as Perl/Python \
                      `unpack` templates, JSON field specs (which may nest a `fields` array for \
-                     STRUCT/LIST-of-STRUCT sub-records), or COBOL copybooks (auto-detected; \
+                     `STRUCT`/`LIST`-of-`STRUCT` sub-records), or COBOL copybooks (auto-detected; \
                      override with `format =>` on the table functions). Encodings are `ascii` \
                      (default) or `ebcdic` (CP037); record framing is `newline` (default), \
                      `fixed`, `rdw`, or `rdw_blocked`.\n\nField kinds map to columns as:\n\n\
-                     - text / hex → VARCHAR\n\
-                     - integers → BIGINT\n\
-                     - COMP-3 / zoned / implied-point → DECIMAL(p,s)\n\
-                     - OCCURS and OCCURS … DEPENDING ON → LIST\n\
-                     - group / nested-fields / REDEFINES → STRUCT"
+                     - text / hex → `VARCHAR`\n\
+                     - integers → `BIGINT`\n\
+                     - COMP-3 / zoned / implied-point → `DECIMAL(p,s)`\n\
+                     - OCCURS and OCCURS … DEPENDING ON → `LIST`\n\
+                     - group / nested-fields / REDEFINES → `STRUCT`"
                         .to_string(),
                 ),
-                // VGI506 representative example queries for the schema.
+                // VGI506 representative example queries for the schema. A JSON
+                // list of {description, sql} objects (VGI515) — each query is
+                // self-contained and catalog-qualified.
                 (
                     "vgi.example_queries".to_string(),
-                    "SELECT fixed.main.unpack_fixed('JohnDoe  00042', 'A8 N');\n\
-                     SELECT fixed.main.pack_fixed({'name': 'Jo', 'id': 7}, 'A2 N');\n\
-                     SELECT fixed.main.fixedformat_version();\n\
-                     SELECT * FROM fixed.main.describe_fixed('name:A10 qty:9(5)');\n\
-                     SELECT * FROM fixed.main.read_fixed('data/*.dat', 'A10 N');\n\
-                     SELECT * FROM fixed.main.write_fixed((FROM tbl), '/tmp/out.dat', 'A10 N');"
-                        .to_string(),
+                    r#"[
+  {
+    "description": "Decode a fixed-width record into a typed struct with a template spec.",
+    "sql": "SELECT fixed.main.unpack_fixed('JohnDoe  00042', 'A8 N')"
+  },
+  {
+    "description": "Encode a struct back into a fixed-width record blob.",
+    "sql": "SELECT fixed.main.pack_fixed({'name': 'Jo', 'id': 7}, 'A2 N')"
+  },
+  {
+    "description": "Introspect how a layout spec resolves — fields, types, byte offsets — without reading data.",
+    "sql": "SELECT * FROM fixed.main.describe_fixed('name:A10 qty:9(5)')"
+  },
+  {
+    "description": "Write a relation out to a fixed-width file and report the write summary.",
+    "sql": "SELECT rows_written, bytes_written FROM fixed.main.write_fixed((FROM (VALUES ('ALICE', 5)) AS v(name, qty)), '/tmp/fixed_example.dat', 'name:A10 qty:9(5)')"
+  },
+  {
+    "description": "Scan the file just written back into typed rows.",
+    "sql": "SELECT * FROM fixed.main.read_fixed('/tmp/fixed_example.dat', 'name:A10 qty:9(5)')"
+  }
+]"#
+                    .to_string(),
                 ),
             ],
             // A browsable, credential-free reference view (VGI146): it lets an
@@ -409,7 +419,7 @@ fn catalog_metadata(name: &str) -> CatalogModel {
                     ('spec_format', 'template', '', 'Perl/Python unpack template string, e.g. \
                      name:A10 qty:9(5).'), \
                     ('spec_format', 'json', '', 'JSON field list (a field may nest a `fields` \
-                     array for STRUCT / LIST-of-STRUCT sub-records).'), \
+                     array for `STRUCT` / `LIST`-of-`STRUCT` sub-records).'), \
                     ('spec_format', 'copybook', '', 'COBOL copybook text (PIC clauses, OCCURS, \
                      REDEFINES, COMP-3).'), \
                     ('encoding', 'ascii', '', 'Plain ASCII / Latin-1 bytes (the default).'), \

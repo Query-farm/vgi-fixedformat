@@ -53,9 +53,9 @@ impl ScalarFunction for UnpackMulti {
              UNION value — the scalar counterpart of read_multi. The `spec` is the same \
              multi-record JSON object (a `discriminator` of {offset, width} plus a `records` map of \
              record-type tag → JSON field list); the record's discriminator bytes pick the variant \
-             to decode it with. The result is a UNION with one STRUCT variant per record type, \
+             to decode it with. The result is a UNION with one `STRUCT` variant per record type, \
              named by the discriminator tag — use `union_tag(...)` for the record type and \
-             `union_extract(..., 'TAG')` to pull a variant's STRUCT. An unmatched discriminator \
+             `union_extract(..., 'TAG')` to pull a variant's `STRUCT`. An unmatched discriminator \
              value errors unless the spec gives a `default` tag. The 3-argument overload adds a \
              positional `encoding` ('ascii' default, or 'ebcdic'/CP037, which also governs the \
              discriminator bytes). The spec is a bind-time constant so the UNION type is known at \

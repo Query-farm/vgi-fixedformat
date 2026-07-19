@@ -117,16 +117,16 @@ impl TableFunction for ReadMulti {
              every field type / group / OCCURS works per record type). Each record is framed per \
              `framing =>` ('newline' the default, 'fixed', 'rdw', or 'rdw_blocked'), its \
              discriminator bytes pick the matching variant, and it is decoded with that variant's \
-             layout. The result is a single column `record` of type UNION — one STRUCT variant per \
+             layout. The result is a single column `record` of type UNION — one `STRUCT` variant per \
              record type, the variant names being the discriminator tags. Use `union_tag(record)` \
              to get a row's record type and `union_extract(record, 'D')` to pull out a given \
-             variant's STRUCT. An unmatched discriminator value is an error unless the spec gives a \
+             variant's `STRUCT`. An unmatched discriminator value is an error unless the spec gives a \
              `default` tag. `path` may glob and may be a cloud URL. `framing`, `encoding`, \
              `compression`, and `record_length` are NAMED arguments.",
             "Scan a heterogeneous flat file whose records have different layouts selected by a \
              discriminator field. The JSON `spec` declares a `discriminator` ({offset,width}) and a \
              `records` map of tag → JSON field list; the result is one UNION column `record` with a \
-             STRUCT variant per record type. Use `union_tag(record)` / `union_extract(record, \
+             `STRUCT` variant per record type. Use `union_tag(record)` / `union_extract(record, \
              'TAG')`. Named args: `framing =>`, `encoding =>`, `compression =>`, `record_length =>`.",
             "read multi, multi-record, heterogeneous, header detail trailer, discriminator, record \
              type, union, copybook, flat file, mainframe, fixed-width",
@@ -140,15 +140,15 @@ impl TableFunction for ReadMulti {
         tags.push((
             "vgi.result_dynamic_columns_md".into(),
             "The result is always a **single** column, `record`, whose UNION variants are \
-             determined by the multi-record `spec` argument — one STRUCT variant per record type, \
+             determined by the multi-record `spec` argument — one `STRUCT` variant per record type, \
              named by that record type's discriminator tag. Read a row's record type with \
-             `union_tag(record)` and pull a variant's STRUCT with `union_extract(record, \
+             `union_tag(record)` and pull a variant's `STRUCT` with `union_extract(record, \
              '<tag>')`.\n\n\
              For example, the header/detail/trailer spec used in the examples below (record types \
              `H`, `D`, `T`) yields:\n\n\
              | Name | Type | Description |\n\
              |---|---|---|\n\
-             | `record` | UNION(H STRUCT(co VARCHAR), D STRUCT(sku VARCHAR, qty BIGINT), T STRUCT(cnt BIGINT)) | A sparse UNION with one STRUCT variant per record type in the spec — here `H` (header), `D` (detail), and `T` (trailer). |"
+             | `record` | UNION(H STRUCT(co VARCHAR), D STRUCT(sku VARCHAR, qty BIGINT), T STRUCT(cnt BIGINT)) | A sparse UNION with one `STRUCT` variant per record type in the spec — here `H` (header), `D` (detail), and `T` (trailer). |"
                 .into(),
         ));
         tags.push((

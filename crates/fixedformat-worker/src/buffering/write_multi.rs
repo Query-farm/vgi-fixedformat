@@ -91,7 +91,7 @@ impl TableBufferingFunction for WriteMulti {
              relation (passed as a subquery, e.g. `(FROM read_multi(...))` or a `(SELECT ...)`) \
              must have exactly ONE column: a sparse UNION whose variant names are the \
              discriminator tags of the `spec` (the exact shape read_multi emits). For each row the \
-             active variant gives its record type and its STRUCT field values; the matching \
+             active variant gives its record type and its `STRUCT` field values; the matching \
              variant layout encodes those fields, the discriminator field is stamped with the tag, \
              the records are framed per the named `framing =>` argument ('newline' the default, \
              'fixed', 'rdw', or 'rdw_blocked'), encoded under named `encoding =>` ('ascii' the \

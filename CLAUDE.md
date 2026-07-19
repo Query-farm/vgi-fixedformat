@@ -90,7 +90,6 @@ needed.
   e.g. `STRUCT`, `DECIMAL(9,2)`, `BIGINT[]`), `byte_offset` (named to dodge the
   `OFFSET` keyword), `width`, `occurs` (OCCURS max, else NULL), `depending_on`
   (ODO controller, else NULL). Flatten logic is in `fixedformat-core/src/describe.rs`.
-- `fixed.main.fixedformat_version()`.
 - `COPY <table> FROM '<path>' (FORMAT 'fixed.fixed', spec '<layout>' [, format, encoding,
   framing, record_length, compression, endpoint, region, url_style, use_ssl])` — load a fixed-width
   file straight into a DuckDB table (the COPY-FROM counterpart of `read_fixed`,
