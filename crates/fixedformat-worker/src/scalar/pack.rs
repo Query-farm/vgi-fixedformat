@@ -8,10 +8,7 @@ use arrow_array::{Array, ArrayRef, RecordBatch};
 use arrow_schema::DataType;
 use fixedformat_core::encode::encode_record;
 use fixedformat_core::Value;
-use vgi::{
-    ArgSpec, BindParams, BindResponse, FunctionExample, FunctionMetadata, ProcessParams,
-    ScalarFunction,
-};
+use vgi::{ArgSpec, BindParams, BindResponse, FunctionMetadata, ProcessParams, ScalarFunction};
 use vgi_rpc::{Result, RpcError};
 
 use crate::options;
@@ -77,20 +74,11 @@ impl ScalarFunction for Pack {
             "Format a `STRUCT` into a fixed-width record blob using the given layout spec (template \
              / JSON / copybook), emitting ASCII bytes; the inverse of unpack_fixed"
         };
-        let example = if self.with_encoding {
-            FunctionExample {
-                sql: "SELECT fixed.main.pack_fixed({'name': 'Jo', 'id': 7}, 'A2 N', 'ebcdic');"
-                    .into(),
-                description: "Format a struct into an EBCDIC-encoded record blob.".into(),
-                expected_output: None,
-            }
-        } else {
-            FunctionExample {
-                sql: "SELECT fixed.main.pack_fixed({'name': 'Jo', 'id': 7}, 'A2 N');".into(),
-                description: "Format a (name, id) struct into a fixed-width record blob.".into(),
-                expected_output: None,
-            }
-        };
+        // Examples live solely in `vgi.example_queries` (they carry a
+        // description; the native `duckdb_functions().examples` column is a
+        // bare VARCHAR[] that cannot). Both arity overloads register under one
+        // name, so a native example from one arity would otherwise surface on
+        // the other as a description-less duplicate (VGI515).
         let mut tags = if self.with_encoding {
             crate::meta::object_tags(
                 "Pack Fixed-Width Record (with encoding)",
@@ -141,7 +129,6 @@ impl ScalarFunction for Pack {
         FunctionMetadata {
             description: description.into(),
             return_type: Some(DataType::Binary),
-            examples: vec![example],
             tags,
             ..Default::default()
         }

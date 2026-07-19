@@ -9,10 +9,7 @@ use arrow_array::{Array, ArrayRef, RecordBatch};
 use arrow_schema::DataType;
 use fixedformat_core::decode::decode_record;
 use fixedformat_core::Value;
-use vgi::{
-    ArgSpec, BindParams, BindResponse, FunctionExample, FunctionMetadata, ProcessParams,
-    ScalarFunction,
-};
+use vgi::{ArgSpec, BindParams, BindResponse, FunctionMetadata, ProcessParams, ScalarFunction};
 use vgi_rpc::{Result, RpcError};
 
 use crate::arrow_map::{build_array, layout_fields};
@@ -79,24 +76,11 @@ impl ScalarFunction for Unpack {
             "Parse a fixed-width record into a `STRUCT` using the given layout spec (template / \
              JSON / copybook), assuming ASCII bytes"
         };
-        let example = if self.with_encoding {
-            FunctionExample {
-                sql: "SELECT fixed.main.unpack_fixed(rec, 'A8 N', 'ebcdic') FROM (SELECT \
-                      'JohnDoe \\x00\\x00\\x00\\x2A'::BLOB AS rec);"
-                    .into(),
-                description: "Parse an EBCDIC-encoded record into a `STRUCT`.".into(),
-                expected_output: None,
-            }
-        } else {
-            FunctionExample {
-                sql: "SELECT fixed.main.unpack_fixed('JohnDoe \\x00\\x00\\x00\\x2A'::BLOB, \
-                      'A8 N');"
-                    .into(),
-                description: "Parse an 8-char name plus a big-endian 32-bit id into a `STRUCT`."
-                    .into(),
-                expected_output: None,
-            }
-        };
+        // Examples live solely in `vgi.example_queries` (they carry a
+        // description; the native `duckdb_functions().examples` column is a
+        // bare VARCHAR[] that cannot). Both arity overloads register under one
+        // name, so a native example from one arity would otherwise surface on
+        // the other as a description-less duplicate (VGI515).
         let mut tags = if self.with_encoding {
             crate::meta::object_tags(
                 "Unpack Fixed-Width Record (with encoding)",
@@ -148,7 +132,6 @@ impl ScalarFunction for Unpack {
         tags.push(("vgi.example_queries".into(), examples_json));
         FunctionMetadata {
             description: description.into(),
-            examples: vec![example],
             tags,
             ..Default::default()
         }

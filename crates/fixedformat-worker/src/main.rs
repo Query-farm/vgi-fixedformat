@@ -406,6 +406,48 @@ fn catalog_metadata(name: &str) -> CatalogModel {
 ]"#
                     .to_string(),
                 ),
+                // VGI509 guaranteed-runnable examples: every statement is
+                // self-contained, catalog-qualified, and re-runnable, so an
+                // agent can execute them verbatim against an attached worker.
+                (
+                    "vgi.executable_examples".to_string(),
+                    r#"[
+  {
+    "name": "unpack_pack_roundtrip",
+    "description": "Decode a fixed-width record into a typed struct, then encode that struct back into the original record bytes — pack_fixed and unpack_fixed are exact inverses.",
+    "sql": [
+      {
+        "description": "Decode an 8-byte name plus a 5-digit zoned quantity into a struct.",
+        "sql": "SELECT fixed.main.unpack_fixed('JohnDoe  00042', 'name:A8 qty:9(5)') AS decoded"
+      },
+      {
+        "description": "Re-encode the decoded struct and confirm it reproduces the input record.",
+        "sql": "SELECT fixed.main.pack_fixed(fixed.main.unpack_fixed('JohnDoe  00042', 'name:A8 qty:9(5)'), 'name:A8 qty:9(5)')::VARCHAR = 'JohnDoe  00042' AS round_trips"
+      }
+    ]
+  },
+  {
+    "name": "describe_a_layout",
+    "description": "Introspect how a layout spec resolves — one row per field with its dotted path, DuckDB type, byte offset, and width — without reading any data.",
+    "sql": "SELECT path, sql_type, byte_offset, width FROM fixed.main.describe_fixed('name:A10 qty:9(5)') ORDER BY byte_offset"
+  },
+  {
+    "name": "write_then_read_fixed",
+    "description": "Write a relation out to a fixed-width file and scan it straight back into typed rows.",
+    "sql": [
+      {
+        "description": "Write two rows to a fixed-width file, reporting rows and bytes written.",
+        "sql": "SELECT rows_written FROM fixed.main.write_fixed((FROM (VALUES ('ALICE', 5), ('BOB', 7)) AS v(name, qty)), '/tmp/fixed_executable_example.dat', 'name:A10 qty:9(5)')"
+      },
+      {
+        "description": "Scan the file back, decoding each record per the same layout spec.",
+        "sql": "SELECT name, qty FROM fixed.main.read_fixed('/tmp/fixed_executable_example.dat', 'name:A10 qty:9(5)') ORDER BY name"
+      }
+    ]
+  }
+]"#
+                    .to_string(),
+                ),
             ],
             // A browsable, credential-free reference view (VGI146): it lets an
             // agent SELECT the worker's own vocabulary — the three spec formats,
