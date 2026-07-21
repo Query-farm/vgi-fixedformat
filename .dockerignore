@@ -1,0 +1,21 @@
+# Keep the build context small: the Dockerfile only needs Cargo manifests +
+# crates/ sources. Everything below is rebuilt inside the image or irrelevant.
+/target
+**/target
+/build
+.git
+.github
+.gitignore
+test
+data
+wasm
+ci
+docs
+duckdb_unittest_tempdir
+run_tests.sh
+README.md
+CHANGELOG.md
+.vgi-review-cache.json
+.vgi-sim-cache.json
+**/*.rs.bk
+.DS_Store

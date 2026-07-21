@@ -1,0 +1,126 @@
+# Copyright 2026 Query Farm LLC - https://query.farm
+#
+# Build and publish the multi-arch vgi-fixedformat image to ghcr.io. The heavy
+# lifting (multi-arch build -> per-arch /health boot smoke -> image SQL suite ->
+# push -> manifest -> cosign-sign) lives in the shared reusable workflow
+# Query-farm/vgi-actions; this file gates on the repo's own CI suite and supplies
+# the worker-specific inputs.
+#
+# Tag-driven: vX.Y.Z -> :X.Y.Z/:X.Y/:latest, push to main -> :edge. Publishing a
+# GitHub Release creates the tag, which fires this too.
+name: Publish image to ghcr.io
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*.*.*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docker-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Gate every image on the full CI suite (fmt · clippy · unit+proptest · SQLLogic
+  # e2e · vgi-lint · audit · wasm · MSRV · MinIO s3), so a broken worker is never
+  # imaged. ci.yml declares `on: workflow_call:` so it can be used here.
+  ci:
+    uses: ./.github/workflows/ci.yml
+
+  publish:
+    needs: [ci]
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    uses: Query-farm/vgi-actions/.github/workflows/docker-publish.yml@v1
+    secrets: inherit
+    with:
+      image_name: vgi-fixedformat
+      # Rust binary — nothing to `import`, so the language-import smoke is skipped.
+      # The reusable workflow still runs its dual-arch HTTP /health boot smoke.
+      smoke_import: ""
+      health_port: "8000"
+      version_check_cmd: "ci/check-version.sh"
+      # Prove the IMAGE's entrypoints speak the VGI protocol against the signed vgi
+      # extension. The worker *logic* is already exercised every run by the gating
+      # `ci` job (all test/sql/*, e2e + MinIO s3), so here we only verify the image:
+      #   - stdio: run the PURE-COMPUTE test subset through `docker run … stdio`
+      #            (the on-host mode). File-reading tests are skipped because their
+      #            fixtures live in the repo, not inside the fixture-less image.
+      #   - HTTP : run one pure test against a SINGLE warm container via the default
+      #            `http` entrypoint + /health, proving the HTTP transport too.
+      # $CITEST_IMAGE is the loaded <image>:citest-amd64 ref; GH_TOKEN is provided
+      # for the release download.
+      image_test: |
+        set -euo pipefail
+
+        echo "::group::download haybarn-unittest"
+        REL=$(gh release view --repo Query-farm-haybarn/haybarn --json tagName --jq .tagName)
+        gh release download "$REL" --repo Query-farm-haybarn/haybarn \
+          --pattern 'haybarn_unittest-linux-amd64.zip' --output hb.zip --clobber
+        mkdir -p hb && unzip -o -q hb.zip -d hb
+        HAYBARN_UNITTEST="$PWD/$(find hb -name 'haybarn-unittest' -type f | head -1)"
+        chmod +x "$HAYBARN_UNITTEST"
+        echo "::endgroup::"
+
+        # Pure-compute tests: unpack_fixed/pack_fixed/describe — no read_fixed,
+        # write_fixed, COPY or file fixtures, so they run against a worker inside a
+        # fixture-less container. (File-IO tests are covered by the gating ci job.)
+        PURE="basic codes copybook describe describe_multi edited nulls scalar_encoding types"
+
+        # Warm the vgi community extension once (the .test files ATTACH TYPE vgi).
+        echo "::group::warm vgi community extension"
+        WARM="$(mktemp -d)/test"
+        mkdir -p "$WARM"
+        cat > "$WARM/_warm.test" <<'EOF'
+        # name: test/_warm.test
+        # group: [warm]
+        statement ok
+        INSTALL vgi FROM community;
+        EOF
+        (cd "$(dirname "$WARM")" && "$HAYBARN_UNITTEST" "test/_warm.test") \
+          >/dev/null 2>&1 || echo "::warning::vgi warm step did not fully succeed"
+        echo "::endgroup::"
+
+        run_suite() {  # $1=stage dir, $2=worker LOCATION, $3=label
+          local stage="$1" worker="$2" label="$3"
+          local report="$stage/.report.txt"
+          echo "Running $label suite (worker: $worker) ..."
+          set +e
+          ( cd "$stage" && VGI_TEST_WORKER="$worker" VGI_WORKER_CATALOG_NAME="fixed" \
+              "$HAYBARN_UNITTEST" --test-dir "$stage" "test/sql/*" ) 2>&1 | tee "$report"
+          local status="${PIPESTATUS[0]}"
+          set -e
+          # A skip is NOT a pass: DuckDB's runner silently auto-skips tests whose
+          # error message contains "HTTP", so a broken transport could look green.
+          if grep -qiE "All tests were skipped|total skipped [1-9]" "$report"; then
+            echo "ERROR: $label tests were SKIPPED — an ATTACH/transport error was masked." >&2
+            exit 1
+          fi
+          [ "$status" -eq 0 ] || { echo "ERROR: $label suite failed (exit $status)." >&2; exit "$status"; }
+        }
+
+        echo "::group::stdio entrypoint smoke (pure subset, cold container per ATTACH)"
+        S1="$(mktemp -d)"; mkdir -p "$S1/test/sql"
+        for t in $PURE; do cp "test/sql/$t.test" "$S1/test/sql/"; done
+        run_suite "$S1" "docker run -i --rm $CITEST_IMAGE stdio" "stdio"
+        echo "::endgroup::"
+
+        echo "::group::HTTP entrypoint smoke (one pure test, one warm container)"
+        CID=$(docker run -d -p 18000:8000 "$CITEST_IMAGE")
+        trap 'docker rm -f "$CID" >/dev/null 2>&1 || true' EXIT
+        for _ in $(seq 1 30); do curl -fsS -o /dev/null http://localhost:18000/health && break; sleep 1; done
+        # The vgi extension's HTTP client is built on DuckDB's httpfs, so inject an
+        # INSTALL/LOAD httpfs after the require-env line (before the ATTACH) for the
+        # http leg — a skip here means the ATTACH errored ("HTTP" auto-skip trap).
+        S2="$(mktemp -d)"; mkdir -p "$S2/test/sql"
+        awk '/^require-env VGI_TEST_WORKER/ {print; print ""; print "statement ok";
+             print "INSTALL httpfs;"; print ""; print "statement ok"; print "LOAD httpfs;"; next}
+             {print}' test/sql/basic.test > "$S2/test/sql/basic.test"
+        run_suite "$S2" "http://localhost:18000" "HTTP"
+        echo "::endgroup::"
