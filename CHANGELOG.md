@@ -4,6 +4,25 @@ All notable changes to `vgi-fixedformat` are documented here. The format is
 based on [Keep a Changelog](https://keepachangelog.com/), and the project follows
 [Semantic Versioning](https://semver.org/).
 
+## [0.9.2] — browser (wasm32) build
+
+### Added
+- A DuckDB-WASM (`LOCATION 'worker:…'`) build of the worker, serving the same
+  registered `build_worker()` over a SharedArrayBuffer byte channel. New
+  `crates/fixedformat-wasm` staticlib entrypoint plus `wasm/build.sh` and the
+  emcc glue; kept out of workspace `default-members`, so native
+  `cargo build`/`test`/`clippy` are unchanged. CI gains a `wasm-build` job
+  (nightly + emsdk 5.0.1) that compiles the browser artifact.
+
+### Changed
+- Catalog metadata and all function registration moved out of `main.rs` into a
+  shared `lib.rs` so the native binary and the browser entrypoint register the
+  identical SQL surface. `main.rs` is now a thin native `run()` shim.
+- `vgi` / `vgi-rpc` / `object_store` features are target-scoped: native keeps
+  the SDK defaults (`sqlite` + `transport-http`); wasm drops them for a
+  byte-channel transport plus a sync-XHR `HttpService` and sha2/hmac
+  `CryptoProvider`. No SQL-surface change; `vgi-lint` stays at 100/100.
+
 ## [0.9.1] — vgi-lint conformance
 
 `0.9.0` was tagged but never published: its CI run failed the `vgi-lint`
