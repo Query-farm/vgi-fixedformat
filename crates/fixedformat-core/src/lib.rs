@@ -23,6 +23,7 @@ pub mod stream;
 pub mod template;
 pub mod value;
 pub mod zoned;
+pub mod zstd_codec;
 
 pub use layout::{
     parse_spec, DateTimeKind, Endian, Field, FieldKind, Justify, Layout, NumRepr, SignKind,

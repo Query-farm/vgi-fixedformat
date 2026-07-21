@@ -7,13 +7,15 @@ license.workspace = true
 authors.workspace = true
 description = "VGI worker exposing fixed-width / Perl-unpack / COBOL-copybook pack & unpack functions to DuckDB over Apache Arrow"
 
+[lib]
+name = "fixedformat_worker"
+path = "src/lib.rs"
+
 [[bin]]
 name = "fixedformat-worker"
 path = "src/main.rs"
 
 [dependencies]
-vgi.workspace = true
-vgi-rpc.workspace = true
 arrow.workspace = true
 arrow-array.workspace = true
 arrow-buffer.workspace = true
@@ -22,13 +24,44 @@ arrow-select.workspace = true
 arrow-cast.workspace = true
 fixedformat-core.workspace = true
 log = "0.4"
-env_logger = "0.11"
 glob = "0.3"
-# Cloud object-store access for s3:// and http(s):// paths. `object_store` is
-# arrow-independent, so it does not disturb the arrow-59 pin. tokio drives the
-# async object_store calls from the synchronous worker (see src/cloud.rs).
-object_store = { version = "0.14", features = ["aws", "http"] }
-tokio = { version = "1", features = ["rt-multi-thread"] }
 url = "2"
 futures = "0.3"
 percent-encoding = "2"
+# Chunk buffers are held as `Bytes` (refcounted) rather than copied into a Vec —
+# already in the graph via arrow-buffer, so this adds nothing.
+bytes = "1"
+
+# --- Native ---------------------------------------------------------------
+# Cloud object-store access for s3:// and http(s):// paths. `object_store` is
+# arrow-independent, so it does not disturb the arrow-59 pin. tokio drives the
+# async object_store calls from the synchronous worker (see src/cloud.rs).
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+# The SDK's real default features — unchanged from before the wasm split.
+vgi = { workspace = true, features = ["sqlite", "transport-http"] }
+vgi-rpc = { workspace = true, features = ["http"] }
+object_store = { version = "0.14", features = ["aws", "http"] }
+tokio = { version = "1", features = ["rt-multi-thread"] }
+env_logger = "0.11"
+
+# --- wasm32 ---------------------------------------------------------------
+# `aws`/`http` pull reqwest+rustls (sockets) and aws-lc-rs (C/asm), none of which
+# build for wasm. The `-base` features are the same S3/HTTP code *without* a
+# bundled transport or crypto provider; src/wasm/ supplies both (sync-XHR
+# HttpService + sha2/hmac CryptoProvider). tokio is rt+time only — no I/O
+# driver is needed since the XHR transport blocks inline, but `time` is
+# required for object_store's retry backoff.
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+# No sqlite (C) and no HTTP transport (tokio/mio/axum); the bincode stream codec
+# is what the SAB byte-channel transport needs.
+vgi = { workspace = true }
+vgi-rpc = { workspace = true, features = ["stream-codec"] }
+object_store = { version = "0.14", default-features = false, features = [
+    "aws-base",
+    "http-base",
+] }
+tokio = { version = "1", default-features = false, features = ["rt", "time"] }
+async-trait = "0.1"
+http = "1"
+sha2 = "0.10"
+hmac = "0.12"

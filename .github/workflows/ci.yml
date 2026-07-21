@@ -135,6 +135,47 @@ jobs:
   # builds. The other jobs only use `@stable`, so a stable-only feature that
   # silently raises the real minimum would otherwise slip through. `cargo check`
   # (not a full build/test) is enough to catch a toolchain-version regression.
+  wasm-build:
+    name: wasm build (emscripten)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      # The pthread build needs -Z build-std, hence nightly. rust-src is the
+      # component build-std compiles from.
+      - name: Install Rust nightly + wasm target
+        uses: dtolnay/rust-toolchain@nightly
+        with:
+          targets: wasm32-unknown-emscripten
+          components: rust-src
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: wasm
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      - name: Install emsdk
+        uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: 5.0.1
+
+      # The SAB ring ops are part of the VGI transport ABI and live in the vgi
+      # extension repo; we link against the canonical copy rather than vendoring
+      # a duplicate that could silently drift (see wasm/build.sh).
+      - name: Check out the vgi extension (for the SAB ring js-library)
+        uses: actions/checkout@v5
+        with:
+          repository: Query-farm/vgi
+          path: .vgi-src
+
+      - name: Build the wasm worker
+        env:
+          VGI_WORKER_LIB: .vgi-src/test/support/wasm-worker/vgi_worker_lib.js
+        run: ./wasm/build.sh
+
+      - name: Check the artifact exists
+        run: test -s wasm/dist/fixedformat_worker.wasm
+
   msrv:
     name: MSRV check (rust 1.90)
     runs-on: ubuntu-latest

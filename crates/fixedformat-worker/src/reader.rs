@@ -35,7 +35,7 @@ use vgi_rpc::{OutputCollector, Result, RpcError};
 use crate::cloud::{self, Location};
 
 /// Rows emitted per `next_batch`. Kept identical to the previous buffered path.
-pub(crate) const BATCH_ROWS: usize = 2048;
+pub const BATCH_ROWS: usize = 2048;
 
 fn ve(e: impl std::fmt::Display) -> RpcError {
     RpcError::value_error(e.to_string())
@@ -43,17 +43,17 @@ fn ve(e: impl std::fmt::Display) -> RpcError {
 
 /// The concrete record iterator: a streaming framer over a (possibly
 /// decompressed) boxed byte source.
-pub(crate) type RecordIter = RecordStream<BufReader<Box<dyn Read + Send>>>;
+pub type RecordIter = RecordStream<BufReader<Box<dyn Read + Send>>>;
 
 /// Map a `Display` error into a value error. Shared with `read_multi`.
-pub(crate) fn read_ve(e: impl std::fmt::Display) -> RpcError {
+pub fn read_ve(e: impl std::fmt::Display) -> RpcError {
     ve(e)
 }
 
 /// A resolved byte source ready to open: a local file path, or a remote object
 /// addressed by a pre-built object store + key. The store is constructed when
 /// the source is resolved (cheap, no I/O); the bytes are fetched on `open`.
-pub(crate) enum Source {
+pub enum Source {
     Local(String),
     Remote {
         store: Arc<dyn ObjectStore>,
@@ -65,7 +65,7 @@ pub(crate) enum Source {
 
 impl Source {
     /// A short human label for this source, used to locate a failing record.
-    pub(crate) fn label(&self) -> &str {
+    pub fn label(&self) -> &str {
         match self {
             Source::Local(p) => p,
             Source::Remote { url, .. } => url.as_str(),
@@ -92,7 +92,7 @@ impl Source {
 
 /// Resolve concrete [`Location`]s into [`Source`]s, building each remote object's
 /// store (no network call) so the bytes can be fetched lazily later.
-pub(crate) fn resolve_sources(
+pub fn resolve_sources(
     locations: &[Location],
     secrets: &Secrets,
     overrides: &[(String, String)],
@@ -119,7 +119,7 @@ pub(crate) fn resolve_sources(
 /// so `fixed` framing — which chunks the stream into equal-length records —
 /// cannot delimit it. Require a self-describing framing instead. (Shared so
 /// `read_fixed` and `COPY … FROM` reject it identically.)
-pub(crate) fn check_variable_framing(layout: &Layout, framing: Framing) -> Result<()> {
+pub fn check_variable_framing(layout: &Layout, framing: Framing) -> Result<()> {
     if layout.variable && framing == Framing::Fixed {
         return Err(ve(
             "OCCURS … DEPENDING ON makes records variable-length; use framing => 'newline', \
@@ -131,7 +131,7 @@ pub(crate) fn check_variable_framing(layout: &Layout, framing: Framing) -> Resul
 
 /// Open a streaming record iterator over one source: decompress (auto-detected
 /// when `compression` is `None`) then frame per `framing`.
-pub(crate) fn open_stream(
+pub fn open_stream(
     source: &Source,
     framing: Framing,
     rec_len: usize,
@@ -161,7 +161,7 @@ pub(crate) fn open_stream(
 ///
 /// Takes ownership and **moves** each projected `Value` exactly once (no per-cell
 /// clone) via `mem::replace` with `Value::Null`.
-pub(crate) fn build_batch(
+pub fn build_batch(
     schema: &SchemaRef,
     projection: &[usize],
     mut rows: Vec<Vec<Value>>,
@@ -193,7 +193,7 @@ pub(crate) fn build_batch(
 /// streaming framer as [`StreamingProducer`], so there is a single read path —
 /// it just collects instead of paginating.
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn read_all(
+pub fn read_all(
     locations: &[Location],
     layout: &Layout,
     enc: Encoding,
@@ -255,7 +255,7 @@ impl StreamingProducer {
     /// building the unprojected ones. COBOL field names are case-insensitive, so
     /// matching is ASCII-case-insensitive (consistent with the decode `scope`).
     #[allow(clippy::too_many_arguments)]
-    pub(crate) fn new(
+    pub fn new(
         schema: SchemaRef,
         full_names: &[String],
         layout: Layout,

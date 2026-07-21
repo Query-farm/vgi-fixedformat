@@ -86,14 +86,7 @@ pub fn decompress(data: Vec<u8>, compression: Compression) -> Result<Vec<u8>> {
                 .map_err(|e| Error(format!("gzip decode: {e}")))?;
             Ok(out)
         }
-        Compression::Zstd => {
-            let mut out = Vec::new();
-            let mut dec = zstd::stream::read::Decoder::new(&data[..])
-                .map_err(|e| Error(format!("zstd decode: {e}")))?;
-            dec.read_to_end(&mut out)
-                .map_err(|e| Error(format!("zstd decode: {e}")))?;
-            Ok(out)
-        }
+        Compression::Zstd => crate::zstd_codec::decode_all(&data),
     }
 }
 
@@ -110,9 +103,7 @@ pub fn compress(data: &[u8], compression: Compression) -> Result<Vec<u8>> {
                 .map_err(|e| Error(format!("gzip encode: {e}")))?;
             e.finish().map_err(|e| Error(format!("gzip encode: {e}")))
         }
-        Compression::Zstd => {
-            zstd::stream::encode_all(data, 0).map_err(|e| Error(format!("zstd encode: {e}")))
-        }
+        Compression::Zstd => crate::zstd_codec::encode_all(data),
     }
 }
 

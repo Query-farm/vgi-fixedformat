@@ -1,0 +1,675 @@
+//! Browser build of the `fixedformat` VGI worker.
+//!
+//! Compiled to `wasm32-unknown-emscripten` and linked by `emcc` into a Web
+//! Worker module (see `build.sh`). DuckDB-WASM's VGI extension delivers a
+//! SharedArrayBuffer channel; each ring slot gets a serve thread that hands the
+//! byte stream to the *same* [`fixedformat_worker::build_worker`] the native
+//! binary uses — only the transport differs (`serve_reader_writer` instead of
+//! `run`).
+//!
+//! The ring ops below are implemented in the emscripten `--js-library`
+//! (`wasm/vgi_http_lib.js` plus the SAB ring ops supplied by the host).
+
+use std::io::{Read, Write};
+
+extern "C" {
+    /// Blocking read of the client→worker ring. Returns 0 at end of stream.
+    fn vgi_sab_worker_read(slot: i32, dst: *mut u8, n: i32) -> i32;
+    /// Blocking write of the worker→client ring. Returns bytes written.
+    fn vgi_sab_worker_write(slot: i32, src: *const u8, n: i32) -> i32;
+    /// Close this slot's worker→client direction (signals EOS to the client).
+    fn vgi_sab_worker_close(slot: i32);
+    /// Park until this slot is claimed by a scan.
+    fn vgi_worker_await_slot(slot: i32);
+    /// Park until the client releases the slot after a serve completes.
+    fn vgi_worker_await_release(slot: i32);
+}
+
+/// `std::io::Read` over a ring slot's client→worker direction.
+struct SabReader {
+    slot: i32,
+}
+
+impl Read for SabReader {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        let n = unsafe { vgi_sab_worker_read(self.slot, buf.as_mut_ptr(), buf.len() as i32) };
+        if n < 0 {
+            return Err(std::io::Error::other("vgi sab ring read failed"));
+        }
+        Ok(n as usize)
+    }
+}
+
+/// `std::io::Write` over a ring slot's worker→client direction.
+struct SabWriter {
+    slot: i32,
+}
+
+impl Write for SabWriter {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        let n = unsafe { vgi_sab_worker_write(self.slot, buf.as_ptr(), buf.len() as i32) };
+        if n < 0 {
+            return Err(std::io::Error::other("vgi sab ring write failed"));
+        }
+        Ok(n as usize)
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        // The ring has no buffering of its own — writes land in shared memory.
+        Ok(())
+    }
+}
+
+/// Serve one request lifecycle on `slot`, then close the worker→client
+/// direction so the client sees end-of-stream.
+///
+/// # Safety
+/// Called from JS with a slot index owned by this thread.
+#[no_mangle]
+pub extern "C" fn fixedformat_serve_sab_slot(slot: i32) {
+    // A panic must NOT escape this `extern "C"` boundary: that is a nounwind
+    // context, so Rust turns it into an immediate `abort()` which takes down the
+    // whole wasm module — every serve thread and the DuckDB engine with it. Catch
+    // it, report it, and close the slot so the client sees a failed stream rather
+    // than the engine dying.
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        // Mounted here, not in `fixedformat_wasm_init`: OPFS operations are
+        // proxied to the event-loop thread, so mounting from it would deadlock. A
+        // serve thread is a safe caller, and `Once` makes the first one to arrive
+        // do the work while the others wait.
+        ensure_opfs_mounted();
+        let worker = fixedformat_worker::build_worker();
+        worker.serve_reader_writer(SabReader { slot }, SabWriter { slot });
+    }));
+    if let Err(payload) = result {
+        let msg = payload
+            .downcast_ref::<&str>()
+            .map(|s| (*s).to_string())
+            .or_else(|| payload.downcast_ref::<String>().cloned())
+            .unwrap_or_else(|| "<non-string panic payload>".to_string());
+        eprintln!("[fixedformat] PANIC on slot {slot}: {msg}");
+    }
+    unsafe { vgi_sab_worker_close(slot) };
+}
+
+/// Mount OPFS at `/opfs` exactly once per module. A failure is logged and
+/// tolerated — only `/opfs/…` paths become unavailable; local MEMFS paths and
+/// every cloud path keep working.
+fn ensure_opfs_mounted() {
+    static ONCE: std::sync::Once = std::sync::Once::new();
+    ONCE.call_once(|| {
+        let rc = fixedformat_wasm_mount_opfs();
+        if rc != 0 {
+            eprintln!("[fixedformat] OPFS mount failed (rc={rc}); '/opfs/…' paths are unavailable");
+        }
+    });
+}
+
+/// One serve thread per ring slot: park until claimed, serve, park until
+/// released, repeat. Threads are pre-spawned because `pthread_create` after
+/// `dlopen` is unreliable under emscripten.
+///
+/// `n_slots` must not exceed the module's `PTHREAD_POOL_SIZE`.
+#[no_mangle]
+pub extern "C" fn fixedformat_serve_pool(n_slots: i32) {
+    for slot in 0..n_slots {
+        std::thread::spawn(move || loop {
+            unsafe { vgi_worker_await_slot(slot) };
+            fixedformat_serve_sab_slot(slot);
+            unsafe { vgi_worker_await_release(slot) };
+        });
+    }
+}
+
+/// The in-memory shared-storage backend must be selected before any buffering
+/// function runs: the default filesystem backend writes to a temp dir that does
+/// not exist under emscripten's MEMFS, and there is no second process to share
+/// state with anyway.
+///
+/// Call once from JS during module init, before `fixedformat_serve_pool`.
+#[no_mangle]
+pub extern "C" fn fixedformat_wasm_init() {
+    if std::env::var_os("VGI_WORKER_SHARED_STORAGE").is_none() {
+        std::env::set_var("VGI_WORKER_SHARED_STORAGE", "memory");
+    }
+}
+
+/// Self-test the browser cloud transport against `url` (an `http(s)://` object),
+/// exercising the **production** path: `cloud::build_store` with the sync-XHR
+/// connector, then `cloud::range_reader`'s ranged streaming read. Verifies the
+/// first `expect_len` bytes are readable and reports the count.
+///
+/// Intended as a deployment health check — CORS misconfiguration is the usual
+/// cause of failure and produces a confusing error deeper in a real scan.
+///
+/// Returns the number of bytes read, or a negative code:
+/// `-1` bad URL/UTF-8, `-2` classify failed, `-3` not a remote URL,
+/// `-4` store construction failed, `-5` range reader failed, `-6` read failed.
+///
+/// # Safety
+/// `url_ptr`/`url_len` must describe a valid UTF-8 buffer.
+#[no_mangle]
+pub unsafe extern "C" fn fixedformat_wasm_selftest_http(
+    url_ptr: *const u8,
+    url_len: i32,
+    expect_len: i32,
+) -> i32 {
+    use fixedformat_worker::cloud::{self, Location};
+    use std::io::Read;
+
+    let raw = std::slice::from_raw_parts(url_ptr, url_len as usize);
+    let Ok(url_s) = std::str::from_utf8(raw) else {
+        return -1;
+    };
+    let loc = match cloud::classify(url_s) {
+        Ok(l) => l,
+        Err(e) => {
+            eprintln!("[selftest] classify failed: {e}");
+            return -2;
+        }
+    };
+    let Location::Remote(url) = loc else {
+        return -3;
+    };
+
+    let secrets = vgi::secrets::Secrets::default();
+    let (store, path) = match cloud::build_store(&url, &secrets, &[]) {
+        Ok(v) => v,
+        Err(e) => {
+            eprintln!("[selftest] build_store failed: {e}");
+            return -4;
+        }
+    };
+    let mut r = match cloud::range_reader(std::sync::Arc::from(store), path, url) {
+        Ok(v) => v,
+        Err(e) => {
+            eprintln!("[selftest] range_reader failed: {e}");
+            return -5;
+        }
+    };
+
+    let mut buf = vec![0u8; expect_len.max(0) as usize];
+    match r.read(&mut buf) {
+        Ok(n) => n as i32,
+        Err(e) => {
+            eprintln!("[selftest] read failed: {e}");
+            -6
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// OPFS (Origin Private File System) — persistent browser-local storage.
+//
+// WASMFS's OPFS backend exposes OPFS through ordinary POSIX file descriptors, so
+// once mounted, `std::fs::File::open("/opfs/…")` works and every existing local
+// -path code path (read_fixed, write_fixed, COPY, globbing) works unchanged.
+//
+// OPFS operations are PROXIED to the thread running the JS event loop, so they
+// must not be called from that thread — a serve pthread is the correct caller,
+// which is how this worker is structured. Calling them on the module main thread
+// deadlocks.
+extern "C" {
+    fn wasmfs_create_opfs_backend() -> *mut std::ffi::c_void;
+    fn wasmfs_create_directory(path: *const i8, mode: u32, backend: *mut std::ffi::c_void) -> i32;
+}
+
+/// Mount OPFS at `/opfs`. Returns 0 on success.
+///
+/// Normally you do not need to call this — [`fixedformat_serve_sab_slot`] mounts
+/// on first use. Exported for hosts that want to mount eagerly, e.g. to surface
+/// an unavailable-OPFS error at startup rather than on the first scan.
+///
+/// **Must not be called from the thread running the JS event loop** (the module's
+/// main thread): OPFS work is proxied there, so calling it from there deadlocks.
+#[no_mangle]
+pub extern "C" fn fixedformat_wasm_mount_opfs() -> i32 {
+    unsafe {
+        let backend = wasmfs_create_opfs_backend();
+        if backend.is_null() {
+            return -1;
+        }
+        wasmfs_create_directory(c"/opfs".as_ptr(), 0o777, backend)
+    }
+}
+
+/// Round-trip a file through OPFS on a worker thread, proving the mount works
+/// and that ordinary Rust `std::fs` reaches it. Returns bytes read back, or a
+/// negative code: `-1` mount, `-2` write, `-3` read, `-4` mismatch.
+#[no_mangle]
+pub extern "C" fn fixedformat_wasm_opfs_selftest() -> i32 {
+    // Must run OFF the event-loop thread; OPFS ops are proxied to it.
+    std::thread::spawn(|| {
+        let m = fixedformat_wasm_mount_opfs();
+        eprintln!("[opfs] mount -> {m}");
+
+        let data: Vec<u8> = (0..=255u8).collect();
+        if let Err(e) = std::fs::write("/opfs/selftest.bin", &data) {
+            eprintln!("[opfs] write failed: {e}");
+            return -2;
+        }
+        let back = match std::fs::read("/opfs/selftest.bin") {
+            Ok(b) => b,
+            Err(e) => {
+                eprintln!("[opfs] read failed: {e}");
+                return -3;
+            }
+        };
+        if back != data {
+            eprintln!("[opfs] mismatch: {} bytes", back.len());
+            return -4;
+        }
+        eprintln!("[opfs] round-trip OK, {} bytes", back.len());
+        back.len() as i32
+    })
+    .join()
+    .unwrap_or(-1)
+}
+
+/// Probe OPFS persistence: return the size of `path` if it already exists,
+/// otherwise create it (256 bytes) and return 0. A second page load returning
+/// 256 proves the data survived.
+///
+/// # Safety
+/// `path` must be a NUL-terminated UTF-8 string.
+#[no_mangle]
+pub unsafe extern "C" fn fixedformat_wasm_opfs_probe(path: *const i8) -> i32 {
+    let p = std::ffi::CStr::from_ptr(path)
+        .to_string_lossy()
+        .into_owned();
+    std::thread::spawn(move || {
+        ensure_opfs_mounted();
+        match std::fs::metadata(&p) {
+            Ok(m) => m.len() as i32,
+            Err(_) => {
+                let data: Vec<u8> = (0..=255u8).collect();
+                match std::fs::write(&p, &data) {
+                    Ok(()) => 0,
+                    Err(e) => {
+                        eprintln!("[opfs] probe write failed: {e}");
+                        -1
+                    }
+                }
+            }
+        }
+    })
+    .join()
+    .unwrap_or(-1)
+}
+
+// ---------------------------------------------------------------------------
+// Load-test harness (OPFS). Not part of the SQL surface; behind the `bench`
+// feature so production artifacts don't carry it.
+
+/// Record layouts for the load test — all exactly 61 bytes + newline, so the
+/// generated data is byte-identical and only the *decoding* differs:
+///   0: `amount` as DECIMAL  → i128 arithmetic (emulated on wasm AND native)
+///   1: `amount` as integer  → BIGINT / i64 (native wasm value type)
+///   2: every field text     → no numeric parsing at all
+/// Comparing 0 vs 1 isolates the cost of 128-bit decimal math; 1 vs 2 isolates
+/// integer parsing.
+#[cfg(feature = "bench")]
+fn bench_spec(id: i32) -> &'static str {
+    match id {
+        1 => "id:9(8) sku:A12 name:A24 qty:9(6) amount:9(11)",
+        2 => "id:A8 sku:A12 name:A24 qty:A6 amount:A11",
+        _ => BENCH_SPEC,
+    }
+}
+
+/// A fixed-width record layout used by the load test — 61 bytes + newline.
+#[cfg(feature = "bench")]
+const BENCH_SPEC: &str = "id:9(8) sku:A12 name:A24 qty:9(6) amount:9(9)V99";
+#[cfg(feature = "bench")]
+const BENCH_RECLEN: usize = 61;
+
+/// Generate `files` files of `records_per_file` fixed-width records under
+/// `/opfs/bench/`, then scan them all back through the production read pipeline.
+///
+/// Writes a JSON result into `out` (up to `out_cap` bytes) and returns its
+/// length, or a negative code. Timings are milliseconds.
+///
+/// # Safety
+/// `out` must point to at least `out_cap` writable bytes.
+#[cfg(feature = "bench")]
+#[no_mangle]
+pub unsafe extern "C" fn fixedformat_wasm_bench_opfs(
+    files: i32,
+    records_per_file: i32,
+    out: *mut u8,
+    out_cap: i32,
+) -> i32 {
+    let handle =
+        std::thread::spawn(move || bench_opfs_inner(files as usize, records_per_file as usize));
+    let json = match handle.join() {
+        Ok(Ok(j)) => j,
+        Ok(Err(e)) => format!("{{\"error\":{:?}}}", e),
+        Err(_) => "{\"error\":\"bench thread panicked\"}".to_string(),
+    };
+    let bytes = json.as_bytes();
+    let n = bytes.len().min(out_cap.max(0) as usize);
+    std::ptr::copy_nonoverlapping(bytes.as_ptr(), out, n);
+    n as i32
+}
+
+#[cfg(feature = "bench")]
+fn now_ms() -> f64 {
+    // std::time::Instant works under emscripten (backed by emscripten_get_now).
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs_f64() * 1000.0)
+        .unwrap_or(0.0)
+}
+
+#[cfg(feature = "bench")]
+fn bench_opfs_inner(files: usize, records_per_file: usize) -> Result<String, String> {
+    ensure_opfs_mounted();
+    let dir = "/opfs/bench";
+    let _ = std::fs::create_dir_all(dir);
+
+    // ---- generate + write -------------------------------------------------
+    let t_gen0 = now_ms();
+    let mut paths = Vec::with_capacity(files);
+    let mut total_bytes = 0usize;
+    for f in 0..files {
+        let mut buf = String::with_capacity(records_per_file * (BENCH_RECLEN + 1));
+        for r in 0..records_per_file {
+            let id = (f * records_per_file + r) as u64;
+            // id:8 sku:12 name:24 qty:6 amount:11  == 61 bytes
+            buf.push_str(&format!(
+                "{:08}{:<12}{:<24}{:06}{:011}\n",
+                id % 100_000_000,
+                format!("SKU{:06}", id % 1_000_000),
+                format!("ITEM-NAME-{:08}", id % 100_000_000),
+                (id % 999_999) as u32,
+                (id * 37) % 100_000_000_000,
+            ));
+        }
+        let path = format!("{dir}/part{f:03}.dat");
+        total_bytes += buf.len();
+        std::fs::write(&path, buf.as_bytes()).map_err(|e| format!("write {path}: {e}"))?;
+        paths.push(path);
+    }
+    let write_ms = now_ms() - t_gen0;
+
+    // ---- scan through the production pipeline -----------------------------
+    let t_scan0 = now_ms();
+    let (rows, batches) = fixedformat_worker::bench_scan_local(&paths, BENCH_SPEC, 2048)?;
+    let scan_ms = now_ms() - t_scan0;
+
+    let mb = total_bytes as f64 / 1_048_576.0;
+    Ok(format!(
+        "{{\"files\":{},\"records_per_file\":{},\"rows\":{},\"batches\":{},\
+\"bytes\":{},\"mib\":{:.2},\"write_ms\":{:.1},\"scan_ms\":{:.1},\
+\"write_mib_s\":{:.1},\"scan_mib_s\":{:.1},\"rows_per_s\":{:.0}}}",
+        files,
+        records_per_file,
+        rows,
+        batches,
+        total_bytes,
+        mb,
+        write_ms,
+        scan_ms,
+        if write_ms > 0.0 {
+            mb / (write_ms / 1000.0)
+        } else {
+            0.0
+        },
+        if scan_ms > 0.0 {
+            mb / (scan_ms / 1000.0)
+        } else {
+            0.0
+        },
+        if scan_ms > 0.0 {
+            rows as f64 / (scan_ms / 1000.0)
+        } else {
+            0.0
+        },
+    ))
+}
+
+/// Parallel scan benchmark: `threads` serve threads each scan their **own**
+/// disjoint set of OPFS files concurrently, mimicking a fanned-out scan.
+///
+/// Reports wall time and the sum of per-thread times; their ratio is the real
+/// speedup. This is the load-bearing measurement for OPFS: WASMFS proxies OPFS
+/// operations to the thread running the JS event loop, so it is *a priori*
+/// possible for concurrent readers to serialize on that proxy.
+///
+/// # Safety
+/// `out` must point to at least `out_cap` writable bytes.
+#[cfg(feature = "bench")]
+#[no_mangle]
+pub unsafe extern "C" fn fixedformat_wasm_bench_parallel(
+    threads: i32,
+    files_per_thread: i32,
+    records_per_file: i32,
+    spec_id: i32,
+    repeats: i32,
+    out: *mut u8,
+    out_cap: i32,
+) -> i32 {
+    let handle = std::thread::spawn(move || {
+        bench_parallel_inner(
+            threads as usize,
+            files_per_thread as usize,
+            records_per_file as usize,
+            spec_id,
+            repeats.max(1) as usize,
+        )
+    });
+    let json = match handle.join() {
+        Ok(Ok(j)) => j,
+        Ok(Err(e)) => format!("{{\"error\":{e:?}}}"),
+        Err(_) => "{\"error\":\"bench thread panicked\"}".to_string(),
+    };
+    let bytes = json.as_bytes();
+    let n = bytes.len().min(out_cap.max(0) as usize);
+    std::ptr::copy_nonoverlapping(bytes.as_ptr(), out, n);
+    n as i32
+}
+
+#[cfg(feature = "bench")]
+fn bench_parallel_inner(
+    threads: usize,
+    files_per_thread: usize,
+    records_per_file: usize,
+    spec_id: i32,
+    repeats: usize,
+) -> Result<String, String> {
+    ensure_opfs_mounted();
+    let root = "/opfs/par";
+    let _ = std::fs::remove_dir_all(root);
+
+    // Generate every thread's files up front so the timed section is pure scan.
+    let mut per_thread_paths: Vec<Vec<String>> = Vec::with_capacity(threads);
+    let mut total_bytes = 0usize;
+    for t in 0..threads {
+        let dir = format!("{root}/t{t}");
+        std::fs::create_dir_all(&dir).map_err(|e| format!("mkdir {dir}: {e}"))?;
+        let mut paths = Vec::with_capacity(files_per_thread);
+        for f in 0..files_per_thread {
+            let mut buf = String::with_capacity(records_per_file * (BENCH_RECLEN + 1));
+            for r in 0..records_per_file {
+                let id = ((t * files_per_thread + f) * records_per_file + r) as u64;
+                buf.push_str(&format!(
+                    "{:08}{:<12}{:<24}{:06}{:011}\n",
+                    id % 100_000_000,
+                    format!("SKU{:06}", id % 1_000_000),
+                    format!("ITEM-NAME-{:08}", id % 100_000_000),
+                    (id % 999_999) as u32,
+                    (id * 37) % 100_000_000_000,
+                ));
+            }
+            let path = format!("{dir}/part{f:03}.dat");
+            total_bytes += buf.len();
+            std::fs::write(&path, buf.as_bytes()).map_err(|e| format!("write {path}: {e}"))?;
+            paths.push(path);
+        }
+        per_thread_paths.push(paths);
+    }
+
+    // Repeat the *scan* over the same generated files (no regeneration between
+    // iterations — OPFS directory churn degrades badly and would confound this).
+    // A rising throughput curve across iterations means the engine was still
+    // tiering up (V8 starts in Liftoff and replaces it with TurboFan when hot).
+    let mut iter_ms: Vec<f64> = Vec::with_capacity(repeats);
+    let mut rows_total = 0usize;
+    let mut thread_ms = Vec::new();
+    let mut wall_ms = 0.0;
+    for _ in 0..repeats {
+        let wall0 = now_ms();
+        let handles: Vec<_> = per_thread_paths
+            .clone()
+            .into_iter()
+            .map(|paths| {
+                std::thread::spawn(move || {
+                    let t0 = now_ms();
+                    let r = fixedformat_worker::bench_scan_local(&paths, bench_spec(spec_id), 2048);
+                    (r, now_ms() - t0)
+                })
+            })
+            .collect();
+
+        rows_total = 0;
+        thread_ms = Vec::with_capacity(threads);
+        for h in handles {
+            let (res, ms) = h.join().map_err(|_| "scan thread panicked".to_string())?;
+            let (rows, _batches) = res?;
+            rows_total += rows;
+            thread_ms.push(ms);
+        }
+        wall_ms = now_ms() - wall0;
+        iter_ms.push(wall_ms);
+    }
+
+    let sum_ms: f64 = thread_ms.iter().sum();
+    let mib = total_bytes as f64 / 1_048_576.0;
+    let per: Vec<String> = thread_ms.iter().map(|m| format!("{m:.0}")).collect();
+    Ok(format!(
+        "{{\"spec_id\":{},\"threads\":{},\"rows\":{},\"mib\":{:.2},\"wall_ms\":{:.1},\
+\"sum_thread_ms\":{:.1},\"speedup\":{:.2},\"per_thread_ms\":[{}],\
+\"rows_per_s\":{:.0},\"iter_ms\":[{}]}}",
+        spec_id,
+        threads,
+        rows_total,
+        mib,
+        wall_ms,
+        sum_ms,
+        if wall_ms > 0.0 { sum_ms / wall_ms } else { 0.0 },
+        per.join(","),
+        if wall_ms > 0.0 {
+            rows_total as f64 / (wall_ms / 1000.0)
+        } else {
+            0.0
+        },
+        iter_ms
+            .iter()
+            .map(|m| format!("{m:.0}"))
+            .collect::<Vec<_>>()
+            .join(","),
+    ))
+}
+
+/// Parallel scan of `s3://` objects — the cloud counterpart of
+/// [`fixedformat_wasm_bench_parallel`]. Answers whether concurrent synchronous
+/// XHRs on separate serve threads actually overlap, or whether the browser's
+/// per-origin connection limit / the transport serializes them.
+///
+/// `cfg` is `endpoint|bucket|prefix|key_id|secret` (pipe-delimited to avoid a
+/// JSON dependency). Objects are expected at `{prefix}/t{thread}/part{NNN}.dat`.
+///
+/// # Safety
+/// `cfg` must point to `cfg_len` valid UTF-8 bytes.
+#[cfg(feature = "bench")]
+#[no_mangle]
+pub unsafe extern "C" fn fixedformat_wasm_bench_parallel_s3(
+    threads: i32,
+    files_per_thread: i32,
+    spec_id: i32,
+    cfg: *const u8,
+    cfg_len: i32,
+    out: *mut u8,
+    out_cap: i32,
+) -> i32 {
+    let raw = std::slice::from_raw_parts(cfg, cfg_len as usize);
+    let cfg_s = String::from_utf8_lossy(raw).into_owned();
+    let handle = std::thread::spawn(move || {
+        bench_parallel_s3_inner(threads as usize, files_per_thread as usize, spec_id, &cfg_s)
+    });
+    let json = match handle.join() {
+        Ok(Ok(j)) => j,
+        Ok(Err(e)) => format!("{{\"error\":{e:?}}}"),
+        Err(_) => "{\"error\":\"bench thread panicked\"}".to_string(),
+    };
+    let bytes = json.as_bytes();
+    let n = bytes.len().min(out_cap.max(0) as usize);
+    std::ptr::copy_nonoverlapping(bytes.as_ptr(), out, n);
+    n as i32
+}
+
+#[cfg(feature = "bench")]
+fn bench_parallel_s3_inner(
+    threads: usize,
+    files_per_thread: usize,
+    spec_id: i32,
+    cfg: &str,
+) -> Result<String, String> {
+    let parts: Vec<&str> = cfg.split('|').collect();
+    if parts.len() != 5 {
+        return Err("cfg must be endpoint|bucket|prefix|key_id|secret".to_string());
+    }
+    let (endpoint, bucket, prefix, key_id, secret) =
+        (parts[0], parts[1], parts[2], parts[3], parts[4]);
+
+    let overrides: Vec<(String, String)> = vec![
+        ("aws_access_key_id".into(), key_id.into()),
+        ("aws_secret_access_key".into(), secret.into()),
+        ("aws_region".into(), "auto".into()),
+        ("aws_endpoint".into(), endpoint.into()),
+        ("aws_virtual_hosted_style_request".into(), "false".into()),
+    ];
+
+    let wall0 = now_ms();
+    let handles: Vec<_> = (0..threads)
+        .map(|t| {
+            let paths: Vec<String> = (0..files_per_thread)
+                .map(|f| format!("s3://{bucket}/{prefix}/t{t}/part{f:03}.dat"))
+                .collect();
+            let ov = overrides.clone();
+            std::thread::spawn(move || {
+                let t0 = now_ms();
+                let r = fixedformat_worker::bench_scan_opts(&paths, bench_spec(spec_id), 2048, &ov);
+                (r, now_ms() - t0)
+            })
+        })
+        .collect();
+
+    let mut rows_total = 0usize;
+    let mut thread_ms = Vec::with_capacity(threads);
+    for h in handles {
+        let (res, ms) = h.join().map_err(|_| "scan thread panicked".to_string())?;
+        rows_total += res?.0;
+        thread_ms.push(ms);
+    }
+    let wall_ms = now_ms() - wall0;
+    let sum_ms: f64 = thread_ms.iter().sum();
+    let per: Vec<String> = thread_ms.iter().map(|m| format!("{m:.0}")).collect();
+    Ok(format!(
+        "{{\"source\":\"s3\",\"threads\":{},\"files_per_thread\":{},\"rows\":{},\
+\"wall_ms\":{:.1},\"sum_thread_ms\":{:.1},\"overlap\":{:.2},\"per_thread_ms\":[{}],\
+\"rows_per_s\":{:.0}}}",
+        threads,
+        files_per_thread,
+        rows_total,
+        wall_ms,
+        sum_ms,
+        if wall_ms > 0.0 { sum_ms / wall_ms } else { 0.0 },
+        per.join(","),
+        if wall_ms > 0.0 {
+            rows_total as f64 / (wall_ms / 1000.0)
+        } else {
+            0.0
+        },
+    ))
+}

@@ -17,7 +17,15 @@ chrono = { version = "0.4", default-features = false, features = ["std"] }
 # lives in core with the other codecs. zstd 0.13 matches the version already in
 # the tree via vgi-rpc.
 flate2 = "1"
+
+# zstd backends differ by target (see src/zstd_codec.rs): the C-backed `zstd`
+# crate natively, pure-Rust `ruzstd` on wasm32 (no C toolchain for that target).
+# Both read/write the standard frame format, so output is interchangeable.
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 zstd = "0.13"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+ruzstd = "0.8"
 
 [dev-dependencies]
 proptest = "1"

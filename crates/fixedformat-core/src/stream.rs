@@ -56,10 +56,6 @@ impl Default for Limits {
     }
 }
 
-/// Cap on the zstd window size a frame may request, bounding the decoder's
-/// internal allocation independent of payload size (2^27 = 128 MiB).
-const ZSTD_WINDOW_LOG_MAX: u32 = 27;
-
 /// A [`Read`] adapter that errors once more than `limit` bytes have been read
 /// from `inner` — the decompression-bomb backstop. Overrun is detected within
 /// one buffer fill of the limit, so peak buffering stays bounded.
@@ -174,18 +170,13 @@ pub fn decompress_reader<R: BufRead + Send + 'static>(
             inner: flate2::read::MultiGzDecoder::new(reader),
             label: "gzip decode",
         })),
-        Compression::Zstd => {
-            let mut dec = zstd::stream::read::Decoder::new(reader)
-                .map_err(|e| Error(format!("zstd decode: {e}")))?;
-            // Bound the decoder's internal window allocation against a frame that
-            // declares an enormous window independent of payload size.
-            dec.window_log_max(ZSTD_WINDOW_LOG_MAX)
-                .map_err(|e| Error(format!("zstd decode: {e}")))?;
-            limited(Box::new(LabeledReader {
-                inner: dec,
-                label: "zstd decode",
-            }))
-        }
+        // The backend differs by target (C `zstd` natively, pure-Rust `ruzstd`
+        // on wasm) but both stream the standard frame format; the window-size
+        // bound is applied inside the native backend.
+        Compression::Zstd => limited(Box::new(LabeledReader {
+            inner: crate::zstd_codec::decoder(reader)?,
+            label: "zstd decode",
+        })),
     })
 }
 

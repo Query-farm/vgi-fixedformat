@@ -10,3 +10,6 @@ data/_*
 
 # Claude Code session/worktree scratch (agent worktrees, local settings)
 /.claude
+
+# Browser build output (wasm/build.sh)
+/wasm/dist

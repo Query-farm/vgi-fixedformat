@@ -1,0 +1,25 @@
+[package]
+name = "fixedformat-wasm"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "Browser (emscripten) build of the fixedformat VGI worker, served over a SharedArrayBuffer channel"
+publish = false
+
+# staticlib: emcc links this into the Web Worker module (see build.sh). Cargo
+# never emits a .wasm for it directly.
+[lib]
+name = "fixedformat_wasm"
+crate-type = ["staticlib"]
+path = "src/lib.rs"
+
+[features]
+# Load-test harness (fixedformat_wasm_bench_opfs). Off by default so production
+# artifacts don't ship benchmark scaffolding; see wasm/README.md.
+bench = []
+
+[dependencies]
+fixedformat-worker = { path = "../fixedformat-worker" }
+vgi = { workspace = true }

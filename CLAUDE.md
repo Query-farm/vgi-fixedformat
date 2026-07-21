@@ -268,14 +268,21 @@ whole file before emitting".
   `copybook`) + decode/encode + `packed` (COMP-3) / `zoned` / `edited`
   (PICTURE-editing print-image numerics) / `datetime` (DATE/TIME/TIMESTAMP via
   `chrono`) / `ebcdic` (CP037 tables) / `framing` (slice splitter) / `stream`
-  (streaming framer + `decompress_reader`) / `compression` (gzip/zstd). All
-  correctness lives here, unit-tested directly.
+  (streaming framer + `decompress_reader`) / `compression` (gzip/zstd, with the
+  zstd backend behind `zstd_codec.rs` — C `zstd` natively, pure-Rust `ruzstd` on
+  wasm32). All correctness lives here, unit-tested directly.
 - `crates/fixedformat-worker` — thin Arrow/VGI adapter: `arrow_map.rs` (Layout →
   Arrow fields, Value → arrays incl. Decimal128/List/Struct), `value_in.rs` (Arrow
   → Value for pack/write), `reader.rs` (streaming byte sources +
   `StreamingProducer` + the `read_all` collector), `options.rs`, and `scalar/`,
   `table/`, `buffering/`.
-  `main.rs` registers everything and calls `Worker::run()`.
+  `lib.rs` holds the catalog metadata and `build_worker()` (all registration);
+  `main.rs` is a thin native binary that calls `.run()` on it. `src/wasm/`
+  (wasm32 only) supplies object_store's transport + crypto for the browser build.
+- `crates/fixedformat-wasm` — the browser entrypoint (staticlib): SAB ring
+  reader/writer shims + `serve_reader_writer` over the SAME `build_worker()`.
+  Excluded from workspace `default-members`, so plain `cargo build`/`test`/
+  `clippy` stay native-only. See `wasm/README.md`.
 - `test/sql/*.test` — sqllogictest e2e (run via haybarn unittest). `data/` holds
   fixtures.
 
@@ -287,6 +294,7 @@ cargo clippy --all-targets       # keep clean
 cargo build --release            # build the worker
 ./run_tests.sh                   # end-to-end SQLLogic suite (13 files, see below)
 ./run_tests.sh test/sql/types.test   # single file (Catch2 filter; trailing * only)
+./wasm/build.sh                  # browser build (needs emsdk + nightly); see wasm/README.md
 ```
 
 Test fixtures under `data/` are regenerated deterministically by
@@ -304,6 +312,77 @@ echo "INSTALL vgi FROM community;" | uvx haybarn-cli
 ```
 `run_tests.sh` builds the worker and runs `haybarn-unittest --test-dir "$PWD"
 "test/sql/*"` with `VGI_TEST_WORKER` pointed at the binary.
+
+## WASM (browser) build
+
+`./wasm/build.sh` produces `wasm/dist/fixedformat_worker.{js,wasm}` for
+DuckDB-WASM (`LOCATION 'worker:…'`). Same functions as native — registration is
+shared via `fixedformat_worker::build_worker()` — with a different transport.
+**Full details and constraints: `wasm/README.md`.** The essentials:
+
+- Native builds are untouched: everything is behind `cfg(target_arch = "wasm32")`
+  or target-scoped Cargo dependencies, and `fixedformat-wasm` is out of
+  `default-members`.
+- Per-target deps: natively `vgi` keeps its real defaults (`sqlite`,
+  `transport-http`) and `object_store` uses `aws`/`http` (reqwest + aws-lc-rs);
+  on wasm those don't compile, so it's `aws-base`/`http-base` plus our own
+  `HttpService` (sync XHR) and `CryptoProvider` (sha2/hmac) in `src/wasm/`.
+  Without the crypto provider every signed S3 request fails at runtime even
+  though it compiles.
+- `HttpBuilder` must be given a **scheme://host** base, not the full URL — it
+  appends the key, so passing the full URL doubles the path. `cloud.rs` mirrors
+  `parse_url_opts` exactly here.
+- `block_on` on wasm uses a **thread-local, long-lived** current_thread runtime.
+  Building one per call also drops one per call, and dropping a tokio runtime
+  blocks on outstanding tasks — which wedges the serve thread. `enable_time` is
+  required (object_store's retry backoff awaits `tokio::time::sleep`).
+- The SSRF guard (`guard_host`) is intentionally a no-op on wasm; see the
+  rationale in `cloud.rs` and `wasm/README.md`.
+- Cloud reads need a CORS policy that **exposes `Content-Range`**, or ranged
+  reads succeed while silently losing the header.
+- **OPFS** is mounted at `/opfs` (WASMFS OPFS backend), so `read_fixed` /
+  `write_fixed` / `COPY` work on `/opfs/…` paths with no wasm-specific code and
+  persist across page loads. The mount happens on a **serve thread** via `Once`
+  (`fixedformat_serve_sab_slot`) — OPFS ops are proxied to the event-loop thread,
+  so mounting from that thread deadlocks.
+- **Two wasm build flags are load-bearing** (`wasm/build.sh`): `-sMALLOC=mimalloc`
+  and `-C opt-level=3`. With emscripten's default dlmalloc every allocation takes
+  one global lock and the decode path allocates per field per row, so parallel
+  scans *anti-scale* (204k → 126k → 63k rows/s at 1/2/4 threads); mimalloc gives
+  397k → 508k → 641k. opt-level 3 (overriding the workspace's `opt-level = 2` for
+  this target only) is worth another ~2× at 4 threads. `+simd128` measured as no
+  difference and is deliberately off.
+- Remote chunks are held as `bytes::Bytes`, never copied into a `Vec`: the store
+  returns a refcounted buffer, so taking it as-is avoids a memcpy per chunk and
+  keeps only ONE copy resident (peak = `REMOTE_CHUNK` x concurrent scans, not
+  2x). No measurable speed effect — cloud reads are network-bound — but it is
+  what makes raising `REMOTE_CHUNK` (8 MiB; 32 MiB measured ~1.3x faster on a
+  64 MiB object) affordable in a browser heap.
+- **Cloud scans are round-trip bound**: ~35.8k rows/s single-threaded from R2 vs
+  486k from OPFS (~14×), so decode cost is irrelevant there. `cloud::range_reader`
+  deliberately issues **no** `head` — it takes the object size from the first
+  ranged `GET`'s `GetResult::meta` (a `head` cost ~120 ms vs ~240 ms for the GET,
+  i.e. ~33% of a small-object scan; removing it gained +34%/+51% at 1/2 threads,
+  natively too). A zero-length object can't satisfy a range (HTTP 416), so a
+  failed first chunk falls back to `head` and reports EOF at size 0. Concurrent sync XHRs on
+  separate serve threads DO overlap (3.67× at 4 threads) and scaling is
+  super-linear (4.58×) — fan-out is the highest-leverage tuning for cloud paths.
+  When benchmarking cloud reads, give each run a distinct prefix or the browser
+  HTTP cache fakes the speedup.
+- The wasm-vs-native gap is a **uniform ~3.3× tax**, not a hot spot. Measured and
+  eliminated: SIMD (`+simd128` = no change), i128 decimal math (~2%), numeric
+  parsing (~10%), and JIT tier-up (same scan ×8 shows no warmup curve — the first
+  iteration is fastest). There is no `target-cpu` equivalent: LLVM emits portable
+  wasm and the browser engine JITs it, so final codegen is V8's, not LLVM's
+  aarch64 backend. That is the likely remainder but is NOT attributed — it needs
+  profiling. Don't hunt for a hot spot; see wasm/README.md.
+- Measured (Chrome, M-series, browser idle): wasm 486k rows/s single-threaded and
+  1.33M at 4 threads, vs native 1.62M / 5.64M — so **~3.3× slower single-threaded,
+  ~4.2× at 4 threads**, with weaker but real parallel scaling (2.73× vs 3.48×).
+  Measure native with the browser idle; running both at once skews native ~35%.
+  `FIXEDFORMAT_BENCH=1 ./wasm/build.sh` builds the harness;
+  `fixedformat_worker::bench_scan_local` drives the real streaming pipeline on
+  both targets.
 
 ## Conventions / gotchas
 

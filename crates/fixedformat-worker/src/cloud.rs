@@ -15,7 +15,10 @@
 //! reuses the ambient runtime via `block_in_place`.
 
 use std::future::Future;
-use std::sync::{Arc, OnceLock};
+use std::sync::Arc;
+// Only the native path keeps a process-wide runtime (see `runtime`).
+#[cfg(not(target_arch = "wasm32"))]
+use std::sync::OnceLock;
 
 use object_store::path::Path as ObjPath;
 // object_store 0.14 moved the `head` / `get_range` / `put` convenience methods
@@ -153,6 +156,7 @@ pub fn secret_lookups(paths: &[String]) -> Vec<SecretLookup> {
 }
 
 /// A shared multi-thread runtime owned by this process for cloud I/O. Built once.
+#[cfg(not(target_arch = "wasm32"))]
 fn runtime() -> &'static tokio::runtime::Runtime {
     static RT: OnceLock<tokio::runtime::Runtime> = OnceLock::new();
     RT.get_or_init(|| {
@@ -171,6 +175,7 @@ fn runtime() -> &'static tokio::runtime::Runtime {
 ///   can't nest a `block_on` on this thread, so run the future on a scratch
 ///   thread with our owned runtime (`std::thread::scope` keeps borrows valid).
 /// - **no** ambient runtime (stdio transport): our owned runtime.
+#[cfg(not(target_arch = "wasm32"))]
 fn block_on<F>(fut: F) -> F::Output
 where
     F: Future + Send,
@@ -184,6 +189,33 @@ where
         Ok(_) => std::thread::scope(|s| s.spawn(|| runtime().block_on(fut)).join().unwrap()),
         Err(_) => runtime().block_on(fut),
     }
+}
+
+/// wasm32: there is no ambient runtime and no I/O driver — the XHR transport
+/// blocks inline, so nothing ever parks on a socket. `enable_time` is
+/// **required**: object_store's retry layer awaits `tokio::time::sleep` for
+/// backoff, which never wakes without a time driver.
+///
+/// The runtime is **per-thread and long-lived**, not per-call. Building one per
+/// call also *drops* one per call, and dropping a tokio runtime blocks until its
+/// tasks finish — with object_store's client tasks that can wedge the serve
+/// thread indefinitely (observed as a scan that issues its first request and
+/// then hangs). One serve thread per ring slot means a thread-local is the
+/// natural ownership, and it also avoids rebuilding a runtime for every 8 MiB
+/// range chunk.
+#[cfg(target_arch = "wasm32")]
+fn block_on<F>(fut: F) -> F::Output
+where
+    F: Future + Send,
+    F::Output: Send,
+{
+    thread_local! {
+        static RT: tokio::runtime::Runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_time()
+            .build()
+            .expect("build tokio runtime for cloud I/O");
+    }
+    RT.with(|rt| rt.block_on(fut))
 }
 
 /// Whether `ip` is on a network the worker should not be tricked into reaching
@@ -220,22 +252,30 @@ fn is_internal_ip(ip: std::net::IpAddr) -> bool {
 /// metadata (`169.254.169.254`), loopback, or RFC-1918 services the SQL user
 /// can't otherwise reach. Set `FIXEDFORMAT_ALLOW_INTERNAL_HOSTS=1` to override
 /// (e.g. a deliberately internal HTTP source).
+///
+/// **wasm32 (browser) is deliberately exempt.** This guard is an SSRF backstop
+/// for a *server-side* worker: there, the process sits on infrastructure the SQL
+/// user cannot otherwise reach, so a URL in a query must not become a fetch of
+/// the instance metadata endpoint. In the browser none of that holds — the
+/// request originates from the end user's own machine, using their network
+/// position, and the page could issue the identical `fetch()` itself, so the
+/// guard grants no protection while breaking legitimate uses (a localhost dev
+/// server, an intranet file the user can genuinely read). The real boundary
+/// there is the browser's same-origin policy: a cross-origin response is
+/// unreadable unless that host opts in via CORS.
 fn guard_host(host: &str) -> Result<()> {
+    if cfg!(target_arch = "wasm32") {
+        return Ok(());
+    }
     if std::env::var_os("FIXEDFORMAT_ALLOW_INTERNAL_HOSTS").is_some() {
         return Ok(());
     }
-    use std::net::ToSocketAddrs;
     // IP literal? check directly. Otherwise resolve and reject if ANY address is
     // internal (a hostname that resolves to a mix is still unsafe).
     let internal = if let Ok(ip) = host.parse::<std::net::IpAddr>() {
         is_internal_ip(ip)
     } else {
-        match (host, 0u16).to_socket_addrs() {
-            Ok(addrs) => addrs.map(|s| s.ip()).any(is_internal_ip),
-            // Resolution failure is surfaced later by the actual request; don't
-            // mask it here.
-            Err(_) => false,
-        }
+        resolve_any_internal(host)
     };
     if internal {
         return Err(ve(format!(
@@ -244,6 +284,27 @@ fn guard_host(host: &str) -> Result<()> {
         )));
     }
     Ok(())
+}
+
+/// Resolve `host` and report whether any address is internal. Resolution failure
+/// is surfaced later by the actual request; don't mask it here.
+#[cfg(not(target_arch = "wasm32"))]
+fn resolve_any_internal(host: &str) -> bool {
+    use std::net::ToSocketAddrs;
+    match (host, 0u16).to_socket_addrs() {
+        Ok(addrs) => addrs.map(|s| s.ip()).any(is_internal_ip),
+        Err(_) => false,
+    }
+}
+
+/// wasm32 has no resolver, so a DNS name cannot be pre-checked. The IP-literal
+/// check above still applies. This is a weaker guard than native, but the threat
+/// model differs too: the fetch runs from the end user's own browser (not a
+/// server), and the browser's same-origin policy means a cross-origin response
+/// is unreadable unless that host opts in via CORS.
+#[cfg(target_arch = "wasm32")]
+fn resolve_any_internal(_host: &str) -> bool {
+    false
 }
 
 pub(crate) fn parse_bool(s: &str) -> Option<bool> {
@@ -299,9 +360,76 @@ pub fn build_store(
     // value for a repeated key).
     opts.extend(overrides.iter().cloned());
 
+    build_store_with_opts(url, opts)
+}
+
+/// Native: let object_store pick and construct the store from the URL. It brings
+/// its own transport (`reqwest`) and crypto (`aws-lc-rs`) via the `aws`/`http`
+/// features.
+#[cfg(not(target_arch = "wasm32"))]
+fn build_store_with_opts(
+    url: &Url,
+    opts: Vec<(String, String)>,
+) -> Result<(Box<dyn ObjectStore>, ObjPath)> {
     let (store, path) = object_store::parse_url_opts(url, opts)
         .map_err(|e| ve(format!("init store for '{url}': {e}")))?;
     Ok((store, path))
+}
+
+/// wasm32: `parse_url_opts` builds stores with the bundled transport/crypto,
+/// which this target does not have — so construct the builders explicitly and
+/// inject ours. The option keys are the same strings the native path passes to
+/// `parse_url_opts`, so `s3_options` and the named overrides are shared verbatim;
+/// an unrecognized key is ignored here exactly as `parse_url_opts` ignores it.
+#[cfg(target_arch = "wasm32")]
+fn build_store_with_opts(
+    url: &Url,
+    opts: Vec<(String, String)>,
+) -> Result<(Box<dyn ObjectStore>, ObjPath)> {
+    use crate::wasm::{crypto, http as wasm_http};
+
+    // Derive the object key with object_store's own URL→(scheme, key) logic —
+    // the exact function `parse_url_opts` uses natively — so key semantics stay
+    // identical across targets instead of being re-derived (and diverging) here.
+    // The re-parse through `ObjPath::parse` also mirrors `parse_url_opts`.
+    let (_scheme, raw_path) = object_store::ObjectStoreScheme::parse(url)
+        .map_err(|e| ve(format!("bad object URL '{url}': {e}")))?;
+    let path =
+        ObjPath::parse(raw_path).map_err(|e| ve(format!("bad object key in '{url}': {e}")))?;
+
+    match url.scheme() {
+        "s3" | "s3a" => {
+            let mut b = object_store::aws::AmazonS3Builder::new()
+                .with_http_connector(wasm_http::XhrConnector)
+                .with_crypto_provider(crypto::provider())
+                .with_url(url.as_str());
+            for (k, v) in opts {
+                if let Ok(key) = k.parse::<object_store::aws::AmazonS3ConfigKey>() {
+                    b = b.with_config(key, v);
+                }
+            }
+            let store = b
+                .build()
+                .map_err(|e| ve(format!("init store for '{url}': {e}")))?;
+            Ok((Box::new(store), path))
+        }
+        "http" | "https" => {
+            // HttpStore's base URL must be scheme://host only — it appends the
+            // object key to whatever base it was built with, so passing the full
+            // URL here doubles the path (`/dir/f.bin/dir/f.bin`). This is exactly
+            // what `parse_url_opts` does natively.
+            let base = &url[..url::Position::BeforePath];
+            let store = object_store::http::HttpBuilder::new()
+                .with_http_connector(wasm_http::XhrConnector)
+                .with_url(base)
+                .build()
+                .map_err(|e| ve(format!("init store for '{url}': {e}")))?;
+            Ok((Box::new(store), path))
+        }
+        other => Err(ve(format!(
+            "unsupported URL scheme '{other}://' for '{url}'"
+        ))),
+    }
 }
 
 /// Map the DuckDB `s3` secret matching `url`'s scope onto object_store S3 config
@@ -354,26 +482,36 @@ pub struct RangeReader {
     store: Arc<dyn ObjectStore>,
     path: ObjPath,
     url: Url,
-    size: u64,
+    /// Total object size. `None` until the first chunk is fetched — the size
+    /// comes back in that response's metadata, so no separate `head` is needed.
+    size: Option<u64>,
     /// Next absolute byte offset to fetch.
     pos: u64,
-    /// The current in-flight chunk and how much of it has been consumed.
-    buf: Vec<u8>,
+    /// The current in-flight chunk and how much of it has been consumed. Held as
+    /// [`Bytes`] rather than copied into a `Vec`: the store hands back a
+    /// refcounted buffer, so taking it as-is avoids memcpy'ing a whole chunk and
+    /// — more importantly — avoids both copies being resident at once, which
+    /// halves peak memory per in-flight chunk (REMOTE_CHUNK x concurrent scans).
+    buf: bytes::Bytes,
     off: usize,
 }
 
-/// Open a range-streaming reader over a remote object (one `head` to size it).
+/// Open a range-streaming reader over a remote object.
+///
+/// Issues **no** request: the object's size is read from the metadata that comes
+/// back with the first chunk (`GetResult::meta`), rather than from a separate
+/// `head`. That halves the round trips for any object that fits in one chunk,
+/// which matters because these reads are latency-bound — measured against R2, a
+/// `head` costs ~120 ms against ~240 ms for the ranged `GET`, so the redundant
+/// request was ~33% of a small-object scan.
 pub fn range_reader(store: Arc<dyn ObjectStore>, path: ObjPath, url: Url) -> Result<RangeReader> {
-    let size = block_on(store.head(&path))
-        .map_err(|e| ve(format!("head {url}: {e}")))?
-        .size;
     Ok(RangeReader {
         store,
         path,
         url,
-        size,
+        size: None,
         pos: 0,
-        buf: Vec::new(),
+        buf: bytes::Bytes::new(),
         off: 0,
     })
 }
@@ -381,19 +519,68 @@ pub fn range_reader(store: Arc<dyn ObjectStore>, path: ObjPath, url: Url) -> Res
 impl std::io::Read for RangeReader {
     fn read(&mut self, out: &mut [u8]) -> std::io::Result<usize> {
         if self.off >= self.buf.len() {
-            if self.pos >= self.size {
-                return Ok(0); // EOF
+            // Once the size is known, stop at EOF without another request.
+            if self.size.is_some_and(|size| self.pos >= size) {
+                return Ok(0);
             }
-            let end = (self.pos + REMOTE_CHUNK).min(self.size);
-            let bytes = block_on(self.store.get_range(&self.path, self.pos..end)).map_err(|e| {
-                std::io::Error::other(format!(
-                    "read {} bytes {}..{}: {e}",
-                    self.url, self.pos, end
-                ))
-            })?;
-            self.pos = end;
-            self.buf = bytes.to_vec();
+            // Ask for a full chunk; the server returns only what exists, and the
+            // response reports both the range actually served and the total size.
+            let end = match self.size {
+                Some(size) => (self.pos + REMOTE_CHUNK).min(size),
+                None => self.pos + REMOTE_CHUNK,
+            };
+            let store = self.store.clone();
+            let path = self.path.clone();
+            let start = self.pos;
+            let fetched = block_on(async move {
+                let res = store
+                    .get_opts(
+                        &path,
+                        object_store::GetOptions {
+                            range: Some(object_store::GetRange::Bounded(start..end)),
+                            ..Default::default()
+                        },
+                    )
+                    .await?;
+                let size = res.meta.size;
+                let served = res.range.clone();
+                let bytes = res.bytes().await?;
+                Ok::<_, object_store::Error>((bytes, size, served))
+            });
+
+            let (bytes, size, served) = match fetched {
+                Ok(v) => v,
+                Err(e) => {
+                    // A zero-length object cannot satisfy any range (HTTP 416).
+                    // Confirm with a `head` before surfacing the error, so an
+                    // empty file still reads as EOF rather than failing the scan.
+                    // Costs one extra request only in that rare case.
+                    if self.size.is_none() {
+                        if let Ok(meta) = block_on(self.store.head(&self.path)) {
+                            if meta.size == 0 {
+                                self.size = Some(0);
+                                return Ok(0);
+                            }
+                        }
+                    }
+                    return Err(std::io::Error::other(format!(
+                        "read {} bytes {}..{}: {e}",
+                        self.url, start, end
+                    )));
+                }
+            };
+
+            self.size = Some(size);
+            // Advance by the bytes actually received, not by the range asked for
+            // (a short final chunk would otherwise skip data) and not by the
+            // server-reported range, which a store is free to normalize.
+            debug_assert!(served.end <= start + bytes.len() as u64 || bytes.is_empty());
+            self.pos = start + bytes.len() as u64;
+            self.buf = bytes;
             self.off = 0;
+            if self.buf.is_empty() {
+                return Ok(0); // nothing more to read
+            }
         }
         let n = (self.buf.len() - self.off).min(out.len());
         out[..n].copy_from_slice(&self.buf[self.off..self.off + n]);
