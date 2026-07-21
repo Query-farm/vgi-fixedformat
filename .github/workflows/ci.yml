@@ -171,6 +171,7 @@ jobs:
       - name: Build the wasm worker
         env:
           VGI_WORKER_LIB: .vgi-src/test/support/wasm-worker/vgi_worker_lib.js
+          VGI_WORKER_PRE: .vgi-src/test/support/wasm-worker/vgi_worker_pre.js
         run: ./wasm/build.sh
 
       - name: Check the artifact exists
