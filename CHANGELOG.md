@@ -4,6 +4,25 @@ All notable changes to `vgi-fixedformat` are documented here. The format is
 based on [Keep a Changelog](https://keepachangelog.com/), and the project follows
 [Semantic Versioning](https://semver.org/).
 
+## [0.9.3] — canonical wasm worker ABI
+
+### Added
+- **Cross-origin hosting** for the browser build: the worker script (and its
+  `.wasm`) may be served from a different origin (a CDN or object store) than the
+  page. Enabled by the shared boot's blob/`baseUrl`/`locateFile` handling and a
+  page bridge that opts the origin in; same-origin hosting is unchanged.
+
+### Changed
+- The browser build adopts the canonical VGI worker ABI. `crates/fixedformat-wasm`
+  replaces its hand-written FFI (~120 lines: ring shims, serve loop, panic
+  guard) with one `vgi::wasm_worker!` invocation from the SDK; `wasm/build.sh`
+  emits the canonical module identity (`EXPORT_NAME=VgiWorker`, `vgi_worker.js`,
+  `vgi_worker_*` exports) and stages the shared `vgi-worker-boot.js` rather than a
+  vendored copy. No change to the SQL surface or wasm functionality.
+- Bumped `vgi` 0.21 → 0.24 (provides the `wasm_worker!` macro). **MSRV is now
+  1.97** (required by `vgi` 0.24); `rust-version` and the CI MSRV job move
+  1.90 → 1.97 accordingly.
+
 ## [0.9.2] — browser (wasm32) build
 
 ### Added
