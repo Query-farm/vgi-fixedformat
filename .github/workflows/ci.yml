@@ -184,7 +184,7 @@ jobs:
       - uses: actions/checkout@v5
 
       - name: Install Rust toolchain (pinned MSRV)
-        uses: dtolnay/rust-toolchain@1.97
+        uses: dtolnay/rust-toolchain@1.100
 
       # Distinct cache key: 1.97 build artifacts are not interchangeable with the
       # stable debug/release caches the other jobs share.
