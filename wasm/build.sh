@@ -28,21 +28,23 @@ command -v emcc >/dev/null || {
   exit 1
 }
 
-# The SharedArrayBuffer ring ops (vgi_sab_worker_read/write/close,
-# vgi_worker_await_slot/release) are part of the VGI transport ABI and must stay
-# byte-exact with vgi/src/include/vgi_sab_abi.hpp. We deliberately do NOT vendor
-# a copy — a stale duplicate of ring math fails in ways that look like data
-# corruption. Point VGI_WORKER_LIB at the canonical implementation instead.
-: "${VGI_WORKER_LIB:=../vgi/test/support/wasm-worker/vgi_worker_lib.js}"
-# The --pre-js half of the same ABI: it runs in EVERY realm of the module and
-# receives the `__vgiInject` message that delivers DuckDB's SharedArrayBuffer to
-# each serve pthread. Without it the ring ops see an undefined channel buffer and
-# the module aborts on the first scan.
-: "${VGI_WORKER_PRE:=../vgi/test/support/wasm-worker/vgi_worker_pre.js}"
+# The browser transport runtime (SAB ring --js-library, --pre-js injection, and
+# the Web Worker boot) is the SHARED @query-farm/vgi-worker-runtime package — the
+# same files every browser VGI worker uses. We do NOT vendor per-worker copies: a
+# stale ring twin fails in ways that look like data corruption. Source them from a
+# checkout of that module (VGI_WORKER_RUNTIME), or fetch a pinned version from the
+# CDN, e.g.:
+#   V=0.1.0; b="https://cdn.jsdelivr.net/npm/@query-farm/vgi-worker-runtime@$V/wasm"
+#   mkdir -p .vgi-runtime && for f in vgi_worker_lib.js vgi_worker_pre.js vgi-worker-boot.js; do
+#     curl -sSfo ".vgi-runtime/$f" "$b/$f"; done
+#   VGI_WORKER_RUNTIME=.vgi-runtime ./wasm/build.sh
+: "${VGI_WORKER_RUNTIME:=../vgi-worker-runtime/wasm}"
+: "${VGI_WORKER_LIB:=$VGI_WORKER_RUNTIME/vgi_worker_lib.js}"
+: "${VGI_WORKER_PRE:=$VGI_WORKER_RUNTIME/vgi_worker_pre.js}"
 [ -f "$VGI_WORKER_PRE" ] || {
   echo "Cannot find the VGI pthread-realm pre-js at: $VGI_WORKER_PRE" >&2
-  echo "It ships with the vgi extension repo at test/support/wasm-worker/vgi_worker_pre.js;" >&2
-  echo "set VGI_WORKER_PRE to its path." >&2
+  echo "It ships in @query-farm/vgi-worker-runtime (wasm/vgi_worker_pre.js);" >&2
+  echo "set VGI_WORKER_RUNTIME to a checkout/CDN copy, or VGI_WORKER_PRE directly." >&2
   exit 1
 }
 [ -f "$VGI_WORKER_LIB" ] || {
@@ -50,9 +52,9 @@ command -v emcc >/dev/null || {
 Cannot find the VGI SAB ring js-library at:
   $VGI_WORKER_LIB
 
-It ships with the vgi extension repo at
-test/support/wasm-worker/vgi_worker_lib.js. Set VGI_WORKER_LIB to its path:
-  VGI_WORKER_LIB=/path/to/vgi/test/support/wasm-worker/vgi_worker_lib.js ./wasm/build.sh
+It ships in @query-farm/vgi-worker-runtime (wasm/vgi_worker_lib.js). Point
+VGI_WORKER_RUNTIME at a checkout/CDN copy of that package's wasm/ dir, or set
+VGI_WORKER_LIB directly.
 MSG
   exit 1
 }
@@ -131,7 +133,7 @@ emcc wasm/main.c "$LIB" \
 
 # Stage the canonical boot alongside the module (referenced, not vendored — it
 # is transport ABI shared with every VGI worker; see VGI_WORKER_BOOT).
-: "${VGI_WORKER_BOOT:=../vgi/test/support/wasm-worker/vgi-worker-boot.js}"
+: "${VGI_WORKER_BOOT:=$VGI_WORKER_RUNTIME/vgi-worker-boot.js}"
 [ -f "$VGI_WORKER_BOOT" ] && cp "$VGI_WORKER_BOOT" "$OUT/vgi-worker-boot.js"
 
 echo "built $OUT/vgi_worker.js + .wasm (+ vgi-worker-boot.js)"
