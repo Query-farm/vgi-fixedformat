@@ -131,7 +131,7 @@ jobs:
           # Real, actionable vulnerabilities in our own deps still fail the job.
           ignore: RUSTSEC-2025-0141
 
-  # Verify the declared MSRV (rust-version = "1.90" in Cargo.toml) actually
+  # Verify the declared MSRV (rust-version = "1.97" in Cargo.toml) actually
   # builds. The other jobs only use `@stable`, so a stable-only feature that
   # silently raises the real minimum would otherwise slip through. `cargo check`
   # (not a full build/test) is enough to catch a toolchain-version regression.
@@ -178,15 +178,15 @@ jobs:
         run: test -s wasm/dist/fixedformat_worker.wasm
 
   msrv:
-    name: MSRV check (rust 1.90)
+    name: MSRV check (rust 1.97)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
 
       - name: Install Rust toolchain (pinned MSRV)
-        uses: dtolnay/rust-toolchain@1.90
+        uses: dtolnay/rust-toolchain@1.97
 
-      # Distinct cache key: 1.90 build artifacts are not interchangeable with the
+      # Distinct cache key: 1.97 build artifacts are not interchangeable with the
       # stable debug/release caches the other jobs share.
       - uses: Swatinem/rust-cache@v2
         with:

@@ -3,7 +3,7 @@
 # fixedformat-wasm compiled to wasm32-unknown-emscripten, linked by emcc with the
 # HTTP js-library into a MODULARIZE'd Web Worker module.
 #
-#   ./wasm/build.sh              → wasm/dist/fixedformat_worker.{js,wasm}
+#   ./wasm/build.sh              → wasm/dist/vgi_worker.{js,wasm}
 #   EMSDK_DIR=/path ./wasm/build.sh
 #
 # Requirements:
@@ -116,18 +116,23 @@ emcc wasm/main.c "$LIB" \
   --js-library wasm/vgi_http_lib.js \
   --js-library "$VGI_WORKER_LIB" \
   --pre-js "$VGI_WORKER_PRE" \
-  -sMODULARIZE=1 -sEXPORT_NAME=FixedFormatWorker \
+  -sMODULARIZE=1 -sEXPORT_NAME=VgiWorker \
   -pthread -sPTHREAD_POOL_SIZE=${PTHREAD_POOL_SIZE:-4} -sSHARED_MEMORY=1 \
   -fwasm-exceptions \
   -sENVIRONMENT=web,worker \
-  -sEXPORTED_FUNCTIONS=_main,_fixedformat_wasm_init,_fixedformat_serve_sab_slot,_fixedformat_serve_pool,_fixedformat_wasm_selftest_http,_fixedformat_wasm_mount_opfs,_fixedformat_wasm_opfs_selftest,_fixedformat_wasm_opfs_probe,_malloc,_free${BENCH_EXPORTS} \
+  -sEXPORTED_FUNCTIONS=_main,_vgi_worker_init,_vgi_worker_serve_sab_slot,_vgi_worker_serve_pool,_fixedformat_wasm_selftest_http,_fixedformat_wasm_mount_opfs,_fixedformat_wasm_opfs_selftest,_fixedformat_wasm_opfs_probe,_malloc,_free${BENCH_EXPORTS} \
   -sEXPORTED_RUNTIME_METHODS=HEAPU8,PThread,stringToNewUTF8 \
   -sEXIT_RUNTIME=0 -sALLOW_MEMORY_GROWTH=1 \
   -sWASMFS -sFORCE_FILESYSTEM \
   -sMALLOC=${MALLOC:-mimalloc} \
   -sSTACK_SIZE=1MB -sDEFAULT_PTHREAD_STACK_SIZE=2MB -sINITIAL_MEMORY=${INITIAL_MEMORY:-64MB} \
   -O${EMCC_OPT:-3} \
-  -o "$OUT/fixedformat_worker.js"
+  -o "$OUT/vgi_worker.js"
 
-echo "built $OUT/fixedformat_worker.js + .wasm"
+# Stage the canonical boot alongside the module (referenced, not vendored — it
+# is transport ABI shared with every VGI worker; see VGI_WORKER_BOOT).
+: "${VGI_WORKER_BOOT:=../vgi/test/support/wasm-worker/vgi-worker-boot.js}"
+[ -f "$VGI_WORKER_BOOT" ] && cp "$VGI_WORKER_BOOT" "$OUT/vgi-worker-boot.js"
+
+echo "built $OUT/vgi_worker.js + .wasm (+ vgi-worker-boot.js)"
 ls -la "$OUT"
