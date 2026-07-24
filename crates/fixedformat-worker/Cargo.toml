@@ -63,5 +63,5 @@ object_store = { version = "0.14", default-features = false, features = [
 tokio = { version = "1", default-features = false, features = ["rt", "time"] }
 async-trait = "0.1"
 http = "1"
-sha2 = "0.10"
+sha2 = "0.11"
 hmac = "0.12"
