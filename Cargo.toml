@@ -27,7 +27,7 @@ repository = "https://github.com/Query-farm/vgi-fixedformat"
 # NOT — tokio/mio/axum and bundled SQLite do not compile for wasm32, and the
 # browser transport serves over a byte channel rather than HTTP. Features are
 # additive, and the two are behind mutually-exclusive target cfgs.
-vgi = { version = "0.24", default-features = false }
+vgi = { version = "0.25", default-features = false }
 vgi-rpc = { version = "0.16", default-features = false, features = ["macros"] }
 arrow = { version = "59", default-features = false, features = ["ipc"] }
 arrow-array = "59"
