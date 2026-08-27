@@ -52,8 +52,9 @@ jobs:
       #   - stdio: run the PURE-COMPUTE test subset through `docker run … stdio`
       #            (the on-host mode). File-reading tests are skipped because their
       #            fixtures live in the repo, not inside the fixture-less image.
-      #   - HTTP : run one pure test against a SINGLE warm container via the default
-      #            `http` entrypoint + /health, proving the HTTP transport too.
+      #   - HTTP : mount the large-file fixture and run one multi-batch test against
+      #            a SINGLE warm container via the default `http` entrypoint +
+      #            /health, proving HTTP continuation as well as startup.
       # $CITEST_IMAGE is the loaded <image>:citest-amd64 ref; GH_TOKEN is provided
       # for the release download.
       image_test: |
@@ -111,8 +112,8 @@ jobs:
         run_suite "$S1" "docker run -i --rm $CITEST_IMAGE stdio" "stdio"
         echo "::endgroup::"
 
-        echo "::group::HTTP entrypoint smoke (one pure test, one warm container)"
-        CID=$(docker run -d -p 18000:8000 "$CITEST_IMAGE")
+        echo "::group::HTTP entrypoint smoke (multi-batch continuation, one warm container)"
+        CID=$(docker run -d -p 18000:8000 -v "$PWD/data:/app/data:ro" "$CITEST_IMAGE")
         trap 'docker rm -f "$CID" >/dev/null 2>&1 || true' EXIT
         for _ in $(seq 1 30); do curl -fsS -o /dev/null http://localhost:18000/health && break; sleep 1; done
         # The vgi extension's HTTP client is built on DuckDB's httpfs, so inject an
@@ -121,6 +122,6 @@ jobs:
         S2="$(mktemp -d)"; mkdir -p "$S2/test/sql"
         awk '/^require-env VGI_TEST_WORKER/ {print; print ""; print "statement ok";
              print "INSTALL httpfs;"; print ""; print "statement ok"; print "LOAD httpfs;"; next}
-             {print}' test/sql/basic.test > "$S2/test/sql/basic.test"
+             {print}' test/sql/http_continuation.test > "$S2/test/sql/http_continuation.test"
         run_suite "$S2" "http://localhost:18000" "HTTP"
         echo "::endgroup::"

@@ -265,4 +265,8 @@ impl TableProducer for OneShot {
     fn next_batch(&mut self, _out: &mut OutputCollector) -> Result<Option<RecordBatch>> {
         Ok(self.batch.take())
     }
+
+    fn resume_supported(&self) -> bool {
+        false
+    }
 }

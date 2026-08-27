@@ -372,14 +372,32 @@ impl TableProducer for MultiProducer {
                 if self.idx >= self.sources.len() {
                     break;
                 }
-                self.current = Some(open_stream(
+                let mut stream = open_stream(
                     &self.sources[self.idx],
                     self.framing,
                     self.rec_len,
                     self.compression,
                     self.limits,
-                )?);
-                self.seen = 0;
+                )?;
+                let label = self.sources[self.idx].label();
+                for record in 0..self.seen {
+                    match stream.next() {
+                        Some(Ok(_)) => {}
+                        Some(Err(e)) => {
+                            return Err(ve(format!(
+                                "{label}: resuming at record {}: {e}",
+                                record + 1
+                            )))
+                        }
+                        None => {
+                            return Err(ve(format!(
+                                "{label}: resume position {} is beyond the end of the source",
+                                self.seen
+                            )))
+                        }
+                    }
+                }
+                self.current = Some(stream);
             }
             let stream = self
                 .current
@@ -402,6 +420,7 @@ impl TableProducer for MultiProducer {
                 None => {
                     self.current = None;
                     self.idx += 1;
+                    self.seen = 0;
                 }
             }
         }
@@ -410,4 +429,6 @@ impl TableProducer for MultiProducer {
         }
         Ok(Some(self.build_union_batch(rows)?))
     }
+
+    vgi::resume_fields!(idx, seen);
 }

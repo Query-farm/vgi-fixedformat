@@ -1,0 +1,17 @@
+# name: test/sql/http_continuation.test
+# description: A result larger than one transport page resumes without gaps or duplicates.
+# group: [sql]
+
+require-env VGI_TEST_WORKER
+
+statement ok
+ATTACH 'fixed' AS fixed (TYPE vgi, LOCATION '${VGI_TEST_WORKER}');
+
+# 5000 rows cross the worker's batch boundary. This is intentionally a small,
+# focused duplicate of the large-file assertion in files.test: the image CI
+# runs this case over a warm HTTP worker, where continuation state is required.
+query III
+SELECT count(*), min(id), max(id)
+FROM fixed.main.read_fixed('data/large.dat', 'id:9(7)');
+----
+5000	0	4999
