@@ -72,11 +72,11 @@ jobs:
         # Only `haybarn-unittest` is installed as a tool; `haybarn-cli` (used to
         # install the vgi extension) is fetched on demand by `uvx` in run_tests.sh.
         run: |
-          uv tool install haybarn-unittest
+          uv tool install 'haybarn-unittest<2'
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: Install the vgi community extension
-        run: echo "INSTALL vgi FROM community;" | uvx haybarn-cli
+        run: echo "INSTALL vgi FROM community;" | uvx --from 'haybarn-cli<2' haybarn-cli
 
       - name: Run SQLLogic suite against the built worker
         run: ./run_tests.sh
@@ -175,7 +175,11 @@ jobs:
         run: ./wasm/build.sh
 
       - name: Check the artifact exists
-        run: test -s wasm/dist/fixedformat_worker.wasm
+        # wasm/build.sh emits the canonical vgi_worker.{js,wasm} module names
+        # (what the shared vgi-worker-boot.js loads), not a per-worker name.
+        run: |
+          test -s wasm/dist/vgi_worker.wasm
+          test -s wasm/dist/vgi_worker.js
 
   msrv:
     name: MSRV check (rust 1.97)
@@ -197,22 +201,23 @@ jobs:
         run: cargo check --workspace --all-features
 
   # Exercise the actual s3:// code path (object_store) against a real
-  # S3-compatible endpoint by standing up a MinIO server and running the gated
-  # round-trip test. The other e2e job leaves s3_roundtrip.test skipped because
+  # S3-compatible endpoint by standing up a moto server (S3 mock) and running the
+  # gated round-trip test. The other e2e job leaves s3_roundtrip.test skipped because
   # its FIXEDFORMAT_S3_TEST_* env vars are unset; here we set them so the test's
   # `require-env` gate passes and the write_fixed -> read_fixed -> glob path runs
   # for real. The test self-seeds (write_fixed creates s3://fixed/ff_roundtrip.dat
   # then reads it back), so we only need the bucket to exist up front.
   cloud-e2e:
-    name: cloud s3 e2e (MinIO)
+    name: cloud s3 e2e (S3-compatible, moto)
     runs-on: ubuntu-latest
     env:
-      # Wired to the MinIO container started below; consumed by
+      # Wired to the moto S3-compatible server started below; consumed by
       # test/sql/s3_roundtrip.test via require-env + CREATE SECRET substitution.
+      # moto accepts any credentials, so these are neutral test values.
       FIXEDFORMAT_S3_TEST_BUCKET: fixed
       FIXEDFORMAT_S3_TEST_ENDPOINT: localhost:9000
-      FIXEDFORMAT_S3_TEST_KEY_ID: minioadmin
-      FIXEDFORMAT_S3_TEST_SECRET: minioadmin
+      FIXEDFORMAT_S3_TEST_KEY_ID: testkey
+      FIXEDFORMAT_S3_TEST_SECRET: testsecret
     steps:
       - uses: actions/checkout@v5
 
@@ -225,26 +230,21 @@ jobs:
           shared-key: release
           save-if: ${{ github.ref == 'refs/heads/main' }}
 
-      # MinIO can't run as a `services:` container: its entrypoint needs the
-      # `server /data` argument, which GitHub Actions service containers can't
-      # supply. So run it directly with `docker run`.
-      - name: Start MinIO
-        run: |
-          docker run -d --name minio -p 9000:9000 \
-            -e MINIO_ROOT_USER="$FIXEDFORMAT_S3_TEST_KEY_ID" \
-            -e MINIO_ROOT_PASSWORD="$FIXEDFORMAT_S3_TEST_SECRET" \
-            minio/minio server /data
+      # Run the S3-compatible server (moto, pinned) directly with `docker run` so
+      # its port mapping and lifetime are explicit. moto listens on 5000.
+      - name: Start the S3-compatible server (moto)
+        run: docker run -d --name s3 -p 9000:5000 motoserver/moto:5.2.4
 
-      - name: Wait for MinIO to be ready
+      - name: Wait for the S3-compatible server to be ready
         run: |
           for i in $(seq 1 30); do
-            if curl -sf "http://$FIXEDFORMAT_S3_TEST_ENDPOINT/minio/health/live"; then
-              echo "MinIO is up"; exit 0
+            if curl -sf "http://$FIXEDFORMAT_S3_TEST_ENDPOINT/moto-api/" >/dev/null; then
+              echo "S3-compatible server is up"; exit 0
             fi
             sleep 2
           done
-          echo "MinIO did not become ready" >&2
-          docker logs minio >&2 || true
+          echo "S3-compatible server did not become ready" >&2
+          docker logs s3 >&2 || true
           exit 1
 
       - name: Create the test bucket
@@ -264,15 +264,23 @@ jobs:
 
       - name: Install the haybarn unittest runner
         run: |
-          uv tool install haybarn-unittest
+          uv tool install 'haybarn-unittest<2'
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: Install the vgi + httpfs extensions
         # httpfs supplies DuckDB's `s3` secret type, which the test's
-        # CREATE SECRET (and its `require httpfs` gate) depends on.
+        # CREATE SECRET depends on (the test also INSTALLs/LOADs it itself).
         run: |
-          echo "INSTALL vgi FROM community;" | uvx haybarn-cli
-          echo "INSTALL httpfs;" | uvx haybarn-cli
+          echo "INSTALL vgi FROM community;" | uvx --from 'haybarn-cli<2' haybarn-cli
+          echo "INSTALL httpfs;" | uvx --from 'haybarn-cli<2' haybarn-cli
 
-      - name: Run the s3 round-trip test against MinIO
-        run: ./run_tests.sh test/sql/s3_roundtrip.test
+      - name: Run the s3 round-trip test against the S3-compatible server
+        # A skip is not a pass: this job exists to run the test for real, so fail
+        # if the runner skipped it (e.g. a require/require-env gate tripped).
+        run: |
+          set -o pipefail
+          ./run_tests.sh test/sql/s3_roundtrip.test 2>&1 | tee s3-e2e.log
+          if grep -qiE "All tests were skipped|total skipped [1-9]" s3-e2e.log; then
+            echo "ERROR: s3_roundtrip.test was skipped instead of run." >&2
+            exit 1
+          fi

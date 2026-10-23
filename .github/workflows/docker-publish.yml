@@ -25,7 +25,7 @@ concurrency:
 
 jobs:
   # Gate every image on the full CI suite (fmt · clippy · unit+proptest · SQLLogic
-  # e2e · vgi-lint · audit · wasm · MSRV · MinIO s3), so a broken worker is never
+  # e2e · vgi-lint · audit · wasm · MSRV · S3-compatible s3), so a broken worker is never
   # imaged. ci.yml declares `on: workflow_call:` so it can be used here.
   ci:
     uses: ./.github/workflows/ci.yml
@@ -48,7 +48,7 @@ jobs:
       version_check_cmd: "ci/check-version.sh"
       # Prove the IMAGE's entrypoints speak the VGI protocol against the signed vgi
       # extension. The worker *logic* is already exercised every run by the gating
-      # `ci` job (all test/sql/*, e2e + MinIO s3), so here we only verify the image:
+      # `ci` job (all test/sql/*, e2e + S3-compatible s3), so here we only verify the image:
       #   - stdio: run the PURE-COMPUTE test subset through `docker run … stdio`
       #            (the on-host mode). File-reading tests are skipped because their
       #            fixtures live in the repo, not inside the fixture-less image.

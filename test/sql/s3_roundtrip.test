@@ -2,8 +2,8 @@
 # description: Live S3-compatible (MinIO) round-trip: write_fixed -> read_fixed
 #              over s3://, with credentials from a DuckDB CREATE SECRET resolved
 #              through the two-phase secret bind. GATED: skipped unless the
-#              FIXEDFORMAT_S3_TEST_* env vars are set and httpfs is available, so
-#              CI without a MinIO/S3 endpoint stays green.
+#              FIXEDFORMAT_S3_TEST_* env vars are set, so CI without a MinIO/S3
+#              endpoint stays green.
 #
 #              To run against a local MinIO (mc alias 'local', a bucket 'fixed'):
 #                export FIXEDFORMAT_S3_TEST_BUCKET=fixed
@@ -23,7 +23,14 @@ require-env FIXEDFORMAT_S3_TEST_KEY_ID
 
 require-env FIXEDFORMAT_S3_TEST_SECRET
 
-require httpfs
+# Load httpfs explicitly (it supplies the `s3` secret type). A bare
+# `require httpfs` is not enough: the sqllogictest runner only honours it for
+# statically linked extensions, so the test was silently skipped in CI.
+statement ok
+INSTALL httpfs;
+
+statement ok
+LOAD httpfs;
 
 statement ok
 ATTACH 'fixed' AS fixed (TYPE vgi, LOCATION '${VGI_TEST_WORKER}');
