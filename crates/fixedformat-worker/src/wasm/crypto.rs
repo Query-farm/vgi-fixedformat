@@ -4,7 +4,7 @@
 //! are C/asm and don't build for wasm. sha2/hmac are pure Rust and do.
 use std::sync::Arc;
 
-use hmac::{Hmac, Mac};
+use hmac::{Hmac, KeyInit, Mac};
 use object_store::client::{
     CryptoProvider, DigestAlgorithm, DigestContext, HmacContext, Signer, SigningAlgorithm,
 };

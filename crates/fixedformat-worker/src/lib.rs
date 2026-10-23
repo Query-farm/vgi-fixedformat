@@ -113,8 +113,9 @@ fn catalog_metadata(name: &str) -> CatalogModel {
             // Fixed agent-suitability suite run by `vgi-lint simulate` (2 single-call
             // smoke tests + 2 multi-concept tasks: a multi-file glob aggregate and the
             // headline EBCDIC/COMP-3 mainframe decode). Each prompt is shown to the
-            // simulated analyst; the hidden reference_sql is the canonical solution,
-            // re-run live to grade by deterministic result comparison. Prompts name
+            // simulated analyst; the private reference_sql graders live in
+            // vgi-agent-tests.yaml (repo root), re-run live to grade by deterministic
+            // result comparison. Prompts name
             // their output columns (grading is strict on names/values/order). The
             // file-based tasks use repo-relative `data/...` paths, so run `vgi-lint
             // simulate` from the repo root where the test fixtures live.
@@ -126,8 +127,6 @@ fn catalog_metadata(name: &str) -> CatalogModel {
                         "I have one fixed-width record 'JOHN      00042' where the first 10 \
                          characters are an account name and the next 5 are a zero-padded quantity. \
                          Parse it and return the quantity as a single integer column named qty.",
-                        "SELECT (fixed.main.unpack_fixed('JOHN      00042', 'name:A10 qty:9(5)'))\
-                         .qty AS qty",
                     ),
                     (
                         "profile_large",
@@ -135,8 +134,6 @@ fn catalog_metadata(name: &str) -> CatalogModel {
                          record is a single 7-digit zero-padded id. Profile it: return one row with \
                          a column named records (the record count), a column named min_id, and a \
                          column named max_id.",
-                        "SELECT count(*) AS records, min(id) AS min_id, max(id) AS max_id \
-                         FROM fixed.main.read_fixed('data/large.dat', 'id:9(7)')",
                     ),
                     (
                         "glob_total",
@@ -145,8 +142,6 @@ fn catalog_metadata(name: &str) -> CatalogModel {
                          account name followed by a 5-digit zero-padded quantity. Read all of the \
                          acct*.dat files at once and return the total quantity across every record \
                          as a single column named total_qty.",
-                        "SELECT sum(qty) AS total_qty \
-                         FROM fixed.main.read_fixed('data/acct*.dat', 'name:A10 qty:9(5)')",
                     ),
                     (
                         "ebcdic_comp3_max",
@@ -155,10 +150,6 @@ fn catalog_metadata(name: &str) -> CatalogModel {
                          Each record is a 5-byte name (PIC X(5)) followed by a signed \
                          packed-decimal amount PIC S9(3)V99 COMP-3. Decode the file and return the \
                          largest amount as a single column named max_amount.",
-                        "SELECT max(AMT) AS max_amount FROM fixed.main.read_fixed(\
-                         'data/ebcdic_comp3.dat', \
-                         '01 R. 05 NM PIC X(5). 05 AMT PIC S9(3)V99 COMP-3.', \
-                         encoding => 'ebcdic', framing => 'fixed')",
                     ),
                     (
                         "pack_ascii_record",
@@ -167,8 +158,6 @@ fn catalog_metadata(name: &str) -> CatalogModel {
                          5-digit zero-padded quantity. Build the record for account name 'ALICE' \
                          with quantity 5 and return the resulting record text as a single column \
                          named record.",
-                        "SELECT fixed.main.pack_fixed({'name': 'ALICE', 'qty': 5}, \
-                         'name:A10 qty:9(5)')::VARCHAR AS record",
                     ),
                     (
                         "pack_ebcdic_comp3_hex",
@@ -177,9 +166,6 @@ fn catalog_metadata(name: &str) -> CatalogModel {
                          signed packed-decimal amount PIC S9(3)V99 COMP-3. Encode name 'ACME' with \
                          amount 123.45 and return the resulting record bytes as an uppercase hex \
                          string in a single column named record_hex.",
-                        "SELECT hex(fixed.main.pack_fixed({'NM': 'ACME', 'AMT': 123.45}, \
-                         '01 R. 05 NM PIC X(5). 05 AMT PIC S9(3)V99 COMP-3.', 'ebcdic')) \
-                         AS record_hex",
                     ),
                     (
                         "write_accounts_file",
@@ -188,9 +174,6 @@ fn catalog_metadata(name: &str) -> CatalogModel {
                          name followed by a 5-digit zero-padded quantity: ALICE with quantity 5 and \
                          BOB with quantity 999. Return the write summary with a column named \
                          rows_written and a column named bytes_written.",
-                        "SELECT rows_written, bytes_written FROM fixed.main.write_fixed(\
-                         (FROM (VALUES ('ALICE', 5), ('BOB', 999)) AS v(name, qty)), \
-                         'data/_agent_write.dat', 'name:A10 qty:9(5)')",
                     ),
                     (
                         "describe_fixed_offset",
@@ -198,8 +181,6 @@ fn catalog_metadata(name: &str) -> CatalogModel {
                          followed by a 5-digit zero-padded quantity. Without reading any data, \
                          work out the byte offset at which the qty field begins and return it as a \
                          single column named qty_offset.",
-                        "SELECT byte_offset AS qty_offset FROM \
-                         fixed.main.describe_fixed('name:A10 qty:9(5)') WHERE path = 'qty'",
                     ),
                     (
                         "describe_multi_field_count",
@@ -211,11 +192,6 @@ fn catalog_metadata(name: &str) -> CatalogModel {
                          \"sku\",\"type\":\"str\",\"width\":10},{\"name\":\"qty\",\"type\":\"int\",\
                          \"digits\":5}]}}. Without reading any data, return how many fields the 'D' \
                          record type declares, as a single column named field_count.",
-                        "SELECT count(*) AS field_count FROM fixed.main.describe_multi(\
-                         '{\"discriminator\":{\"offset\":0,\"width\":1},\"records\":{\"H\":\
-                         [{\"name\":\"co\",\"type\":\"str\",\"width\":20}],\"D\":[{\"name\":\
-                         \"sku\",\"type\":\"str\",\"width\":10},{\"name\":\"qty\",\"type\":\"int\",\
-                         \"digits\":5}]}}') WHERE record_type = 'D'",
                     ),
                     (
                         "read_multi_detail_count",
@@ -230,14 +206,6 @@ fn catalog_metadata(name: &str) -> CatalogModel {
                          \"digits\":5}],\"T\":[{\"type\":\"filler\",\"width\":1},{\"name\":\"cnt\",\
                          \"type\":\"int\",\"digits\":6}]}}. Read the file and return how many \
                          detail ('D') records it contains, as a single column named detail_count.",
-                        "SELECT count(*) AS detail_count FROM fixed.main.read_multi(\
-                         'data/multi.dat', '{\"discriminator\":{\"offset\":0,\"width\":1},\
-                         \"records\":{\"H\":[{\"type\":\"filler\",\"width\":1},{\"name\":\"co\",\
-                         \"type\":\"str\",\"width\":20}],\"D\":[{\"type\":\"filler\",\"width\":1},\
-                         {\"name\":\"sku\",\"type\":\"str\",\"width\":10},{\"name\":\"qty\",\
-                         \"type\":\"int\",\"digits\":5}],\"T\":[{\"type\":\"filler\",\"width\":1},\
-                         {\"name\":\"cnt\",\"type\":\"int\",\"digits\":6}]}}') WHERE \
-                         union_tag(record) = 'D'",
                     ),
                     (
                         "unpack_multi_qty",
@@ -250,12 +218,6 @@ fn catalog_metadata(name: &str) -> CatalogModel {
                          \"type\":\"str\",\"width\":10},{\"name\":\"qty\",\"type\":\"int\",\
                          \"digits\":5}]}}. Decode the record and return its qty as a single column \
                          named qty.",
-                        "SELECT union_extract(fixed.main.unpack_multi('DWIDGET    00042', \
-                         '{\"discriminator\":{\"offset\":0,\"width\":1},\"records\":{\"H\":\
-                         [{\"type\":\"filler\",\"width\":1},{\"name\":\"co\",\"type\":\"str\",\
-                         \"width\":20}],\"D\":[{\"type\":\"filler\",\"width\":1},{\"name\":\"sku\",\
-                         \"type\":\"str\",\"width\":10},{\"name\":\"qty\",\"type\":\"int\",\
-                         \"digits\":5}]}}'), 'D').qty AS qty",
                     ),
                     (
                         "write_multi_roundtrip",
@@ -270,28 +232,12 @@ fn catalog_metadata(name: &str) -> CatalogModel {
                          \"type\":\"str\",\"width\":10},{\"name\":\"qty\",\"type\":\"int\",\
                          \"digits\":5}],\"T\":[{\"type\":\"filler\",\"width\":1},{\"name\":\"cnt\",\
                          \"type\":\"int\",\"digits\":6}]}}.",
-                        "SELECT rows_written FROM fixed.main.write_multi((FROM \
-                         fixed.main.read_multi('data/multi.dat', '{\"discriminator\":{\"offset\":0,\
-                         \"width\":1},\"records\":{\"H\":[{\"type\":\"filler\",\"width\":1},\
-                         {\"name\":\"co\",\"type\":\"str\",\"width\":20}],\"D\":[{\"type\":\
-                         \"filler\",\"width\":1},{\"name\":\"sku\",\"type\":\"str\",\"width\":10},\
-                         {\"name\":\"qty\",\"type\":\"int\",\"digits\":5}],\"T\":[{\"type\":\
-                         \"filler\",\"width\":1},{\"name\":\"cnt\",\"type\":\"int\",\"digits\":6}]}}\
-                         ')), 'data/_task_multi_out.dat', '{\"discriminator\":{\"offset\":0,\
-                         \"width\":1},\"records\":{\"H\":[{\"type\":\"filler\",\"width\":1},\
-                         {\"name\":\"co\",\"type\":\"str\",\"width\":20}],\"D\":[{\"type\":\
-                         \"filler\",\"width\":1},{\"name\":\"sku\",\"type\":\"str\",\"width\":10},\
-                         {\"name\":\"qty\",\"type\":\"int\",\"digits\":5}],\"T\":[{\"type\":\
-                         \"filler\",\"width\":1},{\"name\":\"cnt\",\"type\":\"int\",\"digits\":6}]}}\
-                         ')",
                     ),
                     (
                         "spec_reference_framing",
                         "Using the fixed-format worker's built-in reference table, list how many \
                          record-framing modes it supports. Return the count as a single column \
                          named framing_modes.",
-                        "SELECT count(*) AS framing_modes FROM fixed.main.spec_reference WHERE \
-                         topic = 'framing'",
                     ),
                 ]),
             ),
@@ -313,6 +259,7 @@ fn catalog_metadata(name: &str) -> CatalogModel {
         source_url: Some("https://github.com/Query-farm/vgi-fixedformat".to_string()),
         schemas: vec![CatSchema {
             name: "main".to_string(),
+            path: Vec::new(),
             comment: Some(
                 "Fixed-width / copybook parsing, formatting, reading, and writing functions."
                     .to_string(),

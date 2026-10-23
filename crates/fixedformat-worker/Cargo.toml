@@ -34,7 +34,7 @@ bytes = "1"
 
 # --- Native ---------------------------------------------------------------
 # Cloud object-store access for s3:// and http(s):// paths. `object_store` is
-# arrow-independent, so it does not disturb the arrow-59 pin. tokio drives the
+# arrow-independent, so it does not disturb the arrow-60 pin. tokio drives the
 # async object_store calls from the synchronous worker (see src/cloud.rs).
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 # The SDK's real default features — unchanged from before the wasm split.
@@ -63,5 +63,5 @@ object_store = { version = "0.14", default-features = false, features = [
 tokio = { version = "1", default-features = false, features = ["rt", "time"] }
 async-trait = "0.1"
 http = "1"
-sha2 = "0.10"
-hmac = "0.12"
+sha2 = "0.11"
+hmac = "0.13"

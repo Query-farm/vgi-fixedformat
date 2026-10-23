@@ -1,0 +1,35 @@
+# Private graders for the agent-suitability suite (`vgi-lint simulate`).
+#
+# The prompts are published in the catalog's vgi.agent_test_tasks tag
+# (crates/fixedformat-worker/src/lib.rs); the canonical answers live here,
+# keyed by task name, so the agent being graded never sees them (VGI416).
+# vgi-lint discovers this file in the directory it runs from. The file-based
+# tasks use repo-relative `data/...` paths, so run vgi-lint from the repo root.
+
+tasks:
+  - name: unpack_single
+    reference_sql: "SELECT (fixed.main.unpack_fixed('JOHN      00042', 'name:A10 qty:9(5)')).qty AS qty"
+  - name: profile_large
+    reference_sql: "SELECT count(*) AS records, min(id) AS min_id, max(id) AS max_id FROM fixed.main.read_fixed('data/large.dat', 'id:9(7)')"
+  - name: glob_total
+    reference_sql: "SELECT sum(qty) AS total_qty FROM fixed.main.read_fixed('data/acct*.dat', 'name:A10 qty:9(5)')"
+  - name: ebcdic_comp3_max
+    reference_sql: "SELECT max(AMT) AS max_amount FROM fixed.main.read_fixed('data/ebcdic_comp3.dat', '01 R. 05 NM PIC X(5). 05 AMT PIC S9(3)V99 COMP-3.', encoding => 'ebcdic', framing => 'fixed')"
+  - name: pack_ascii_record
+    reference_sql: "SELECT fixed.main.pack_fixed({'name': 'ALICE', 'qty': 5}, 'name:A10 qty:9(5)')::VARCHAR AS record"
+  - name: pack_ebcdic_comp3_hex
+    reference_sql: "SELECT hex(fixed.main.pack_fixed({'NM': 'ACME', 'AMT': 123.45}, '01 R. 05 NM PIC X(5). 05 AMT PIC S9(3)V99 COMP-3.', 'ebcdic')) AS record_hex"
+  - name: write_accounts_file
+    reference_sql: "SELECT rows_written, bytes_written FROM fixed.main.write_fixed((FROM (VALUES ('ALICE', 5), ('BOB', 999)) AS v(name, qty)), 'data/_agent_write.dat', 'name:A10 qty:9(5)')"
+  - name: describe_fixed_offset
+    reference_sql: "SELECT byte_offset AS qty_offset FROM fixed.main.describe_fixed('name:A10 qty:9(5)') WHERE path = 'qty'"
+  - name: describe_multi_field_count
+    reference_sql: "SELECT count(*) AS field_count FROM fixed.main.describe_multi('{\"discriminator\":{\"offset\":0,\"width\":1},\"records\":{\"H\":[{\"name\":\"co\",\"type\":\"str\",\"width\":20}],\"D\":[{\"name\":\"sku\",\"type\":\"str\",\"width\":10},{\"name\":\"qty\",\"type\":\"int\",\"digits\":5}]}}') WHERE record_type = 'D'"
+  - name: read_multi_detail_count
+    reference_sql: "SELECT count(*) AS detail_count FROM fixed.main.read_multi('data/multi.dat', '{\"discriminator\":{\"offset\":0,\"width\":1},\"records\":{\"H\":[{\"type\":\"filler\",\"width\":1},{\"name\":\"co\",\"type\":\"str\",\"width\":20}],\"D\":[{\"type\":\"filler\",\"width\":1},{\"name\":\"sku\",\"type\":\"str\",\"width\":10},{\"name\":\"qty\",\"type\":\"int\",\"digits\":5}],\"T\":[{\"type\":\"filler\",\"width\":1},{\"name\":\"cnt\",\"type\":\"int\",\"digits\":6}]}}') WHERE union_tag(record) = 'D'"
+  - name: unpack_multi_qty
+    reference_sql: "SELECT union_extract(fixed.main.unpack_multi('DWIDGET    00042', '{\"discriminator\":{\"offset\":0,\"width\":1},\"records\":{\"H\":[{\"type\":\"filler\",\"width\":1},{\"name\":\"co\",\"type\":\"str\",\"width\":20}],\"D\":[{\"type\":\"filler\",\"width\":1},{\"name\":\"sku\",\"type\":\"str\",\"width\":10},{\"name\":\"qty\",\"type\":\"int\",\"digits\":5}]}}'), 'D').qty AS qty"
+  - name: write_multi_roundtrip
+    reference_sql: "SELECT rows_written FROM fixed.main.write_multi((FROM fixed.main.read_multi('data/multi.dat', '{\"discriminator\":{\"offset\":0,\"width\":1},\"records\":{\"H\":[{\"type\":\"filler\",\"width\":1},{\"name\":\"co\",\"type\":\"str\",\"width\":20}],\"D\":[{\"type\":\"filler\",\"width\":1},{\"name\":\"sku\",\"type\":\"str\",\"width\":10},{\"name\":\"qty\",\"type\":\"int\",\"digits\":5}],\"T\":[{\"type\":\"filler\",\"width\":1},{\"name\":\"cnt\",\"type\":\"int\",\"digits\":6}]}}')), 'data/_task_multi_out.dat', '{\"discriminator\":{\"offset\":0,\"width\":1},\"records\":{\"H\":[{\"type\":\"filler\",\"width\":1},{\"name\":\"co\",\"type\":\"str\",\"width\":20}],\"D\":[{\"type\":\"filler\",\"width\":1},{\"name\":\"sku\",\"type\":\"str\",\"width\":10},{\"name\":\"qty\",\"type\":\"int\",\"digits\":5}],\"T\":[{\"type\":\"filler\",\"width\":1},{\"name\":\"cnt\",\"type\":\"int\",\"digits\":6}]}}')"
+  - name: spec_reference_framing
+    reference_sql: "SELECT count(*) AS framing_modes FROM fixed.main.spec_reference WHERE topic = 'framing'"
