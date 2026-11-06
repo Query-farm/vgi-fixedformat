@@ -72,11 +72,11 @@ jobs:
         # Only `haybarn-unittest` is installed as a tool; `haybarn-cli` (used to
         # install the vgi extension) is fetched on demand by `uvx` in run_tests.sh.
         run: |
-          uv tool install 'haybarn-unittest<2'
+          uv tool install --prerelease allow 'haybarn-unittest>=2.0.0rc11,<2.1'
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: Install the vgi community extension
-        run: echo "INSTALL vgi FROM community;" | uvx --from 'haybarn-cli<2' haybarn-cli
+        run: echo "FORCE INSTALL vgi FROM community;" | uvx --prerelease allow --from 'haybarn-cli>=2.0.0rc11,<2.1' haybarn-cli
 
       - name: Run SQLLogic suite against the built worker
         run: ./run_tests.sh
@@ -100,7 +100,7 @@ jobs:
         run: cargo build --release --bin fixedformat-worker
 
       - name: vgi-lint
-        uses: Query-farm/vgi-lint-check@v1
+        uses: Query-farm/vgi-lint-check@v2
         with:
           location: "${{ github.workspace }}/target/release/fixedformat-worker"
           fail-on: info
@@ -264,15 +264,15 @@ jobs:
 
       - name: Install the haybarn unittest runner
         run: |
-          uv tool install 'haybarn-unittest<2'
+          uv tool install --prerelease allow 'haybarn-unittest>=2.0.0rc11,<2.1'
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: Install the vgi + httpfs extensions
         # httpfs supplies DuckDB's `s3` secret type, which the test's
         # CREATE SECRET depends on (the test also INSTALLs/LOADs it itself).
         run: |
-          echo "INSTALL vgi FROM community;" | uvx --from 'haybarn-cli<2' haybarn-cli
-          echo "INSTALL httpfs;" | uvx --from 'haybarn-cli<2' haybarn-cli
+          echo "FORCE INSTALL vgi FROM community;" | uvx --prerelease allow --from 'haybarn-cli>=2.0.0rc11,<2.1' haybarn-cli
+          echo "INSTALL httpfs;" | uvx --prerelease allow --from 'haybarn-cli>=2.0.0rc11,<2.1' haybarn-cli
 
       - name: Run the s3 round-trip test against the S3-compatible server
         # A skip is not a pass: this job exists to run the test for real, so fail

@@ -9,7 +9,8 @@ talks to over Apache Arrow IPC, `ATTACH 'fixed' (TYPE vgi, LOCATION '…')`) tha
 brings Perl-`unpack` / Python-`struct` / COBOL-copybook fixed-width parsing and
 formatting to SQL. Functions live under catalog `fixed`, schema `main`.
 
-Built on the published VGI Rust SDK (`vgi = "0.46"` from crates.io), arrow 60.
+Built on the published VGI Rust SDK (`vgi = "0.49.2"` from crates.io; VGI protocol
+`vgi.v3` 3.1, which needs haybarn 2.0's community `vgi` extension), arrow 59.
 Modeled on `../vgi-miint`. The repo builds standalone — no local SDK checkout
 needed.
 
@@ -306,9 +307,8 @@ emitted; `malformed.test` asserts `statement error`, which still holds.
 
 End-to-end tests need the haybarn tooling (one-time):
 ```sh
-uv tool install haybarn-unittest
-uv tool install haybarn
-echo "INSTALL vgi FROM community;" | uvx haybarn-cli
+uv tool install --prerelease allow 'haybarn-unittest>=2.0.0rc11,<2.1'
+echo "INSTALL vgi FROM community;" | uvx --prerelease allow --from 'haybarn-cli>=2.0.0rc11,<2.1' haybarn-cli
 ```
 `run_tests.sh` builds the worker and runs `haybarn-unittest --test-dir "$PWD"
 "test/sql/*"` with `VGI_TEST_WORKER` pointed at the binary.

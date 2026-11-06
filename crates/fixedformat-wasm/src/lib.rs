@@ -127,7 +127,11 @@ pub unsafe extern "C" fn fixedformat_wasm_selftest_http(
 // deadlocks.
 extern "C" {
     fn wasmfs_create_opfs_backend() -> *mut std::ffi::c_void;
-    fn wasmfs_create_directory(path: *const i8, mode: u32, backend: *mut std::ffi::c_void) -> i32;
+    fn wasmfs_create_directory(
+        path: *const std::ffi::c_char,
+        mode: u32,
+        backend: *mut std::ffi::c_void,
+    ) -> i32;
 }
 
 /// Mount OPFS at `/opfs`. Returns 0 on success.
@@ -189,7 +193,7 @@ pub extern "C" fn fixedformat_wasm_opfs_selftest() -> i32 {
 /// # Safety
 /// `path` must be a NUL-terminated UTF-8 string.
 #[no_mangle]
-pub unsafe extern "C" fn fixedformat_wasm_opfs_probe(path: *const i8) -> i32 {
+pub unsafe extern "C" fn fixedformat_wasm_opfs_probe(path: *const std::ffi::c_char) -> i32 {
     let p = std::ffi::CStr::from_ptr(path)
         .to_string_lossy()
         .into_owned();

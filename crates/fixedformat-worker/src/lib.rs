@@ -539,6 +539,7 @@ fn catalog_metadata(name: &str) -> CatalogModel {
                         "A one-line explanation of the token.".to_string(),
                     ),
                 ],
+                ..Default::default()
             }],
             macros: Vec::new(),
             tables: Vec::new(),

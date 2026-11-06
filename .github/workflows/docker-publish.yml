@@ -61,7 +61,9 @@ jobs:
         set -euo pipefail
 
         echo "::group::download haybarn-unittest"
-        REL=$(gh release view --repo Query-farm-haybarn/haybarn --json tagName --jq .tagName)
+        REL=$(gh release list --repo Query-farm-haybarn/haybarn --limit 30 --json tagName \
+          --jq '[.[].tagName | select(startswith("haybarn-v2.0"))][0]')
+        [ -n "$REL" ] && [ "$REL" != null ] || { echo "::error::no haybarn-v2.0 release found"; exit 1; }
         gh release download "$REL" --repo Query-farm-haybarn/haybarn \
           --pattern 'haybarn_unittest-linux-amd64.zip' --output hb.zip --clobber
         mkdir -p hb && unzip -o -q hb.zip -d hb
@@ -82,9 +84,9 @@ jobs:
         # name: test/_warm.test
         # group: [warm]
         statement ok
-        INSTALL vgi FROM community;
+        FORCE INSTALL vgi FROM community;
         EOF
-        (cd "$(dirname "$WARM")" && "$HAYBARN_UNITTEST" "test/_warm.test") \
+        (cd "$(dirname "$WARM")" && "$HAYBARN_UNITTEST" --keep-home "test/_warm.test") \
           >/dev/null 2>&1 || echo "::warning::vgi warm step did not fully succeed"
         echo "::endgroup::"
 
@@ -94,7 +96,7 @@ jobs:
           echo "Running $label suite (worker: $worker) ..."
           set +e
           ( cd "$stage" && VGI_TEST_WORKER="$worker" VGI_WORKER_CATALOG_NAME="fixed" \
-              "$HAYBARN_UNITTEST" --test-dir "$stage" "test/sql/*" ) 2>&1 | tee "$report"
+              "$HAYBARN_UNITTEST" --keep-home --test-dir "$stage" "test/sql/*" ) 2>&1 | tee "$report"
           local status="${PIPESTATUS[0]}"
           set -e
           # A skip is NOT a pass: DuckDB's runner silently auto-skips tests whose

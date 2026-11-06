@@ -58,7 +58,7 @@ directory).
 ### Compatibility & limits
 
 - **DuckDB / vgi:** needs a DuckDB with the `vgi` community extension (the worker
-  speaks Arrow IPC over the VGI protocol). Built against `vgi 0.46` / arrow 60;
+  speaks Arrow IPC over the VGI protocol). Built against `vgi 0.49.2` (VGI protocol 3.1, haybarn 2.0) / arrow 59;
   the prebuilt binaries are platform-specific (download the one matching your OS
   and CPU). If `ATTACH` fails with an opaque Arrow/IPC error, you most likely have
   a mismatched `vgi` extension version — update it (`UPDATE EXTENSIONS;`).
@@ -563,9 +563,8 @@ The end-to-end suite (`test/sql/*.test`) runs against the built worker through
 the haybarn DuckDB unittest runner. One-time setup:
 
 ```sh
-uv tool install haybarn-unittest
-uv tool install haybarn
-echo "INSTALL vgi FROM community;" | uvx haybarn-cli
+uv tool install --prerelease allow 'haybarn-unittest>=2.0.0rc11,<2.1'
+echo "INSTALL vgi FROM community;" | uvx --prerelease allow --from 'haybarn-cli>=2.0.0rc11,<2.1' haybarn-cli
 ```
 
 The codebase splits into a pure-logic crate and a thin adapter — see
