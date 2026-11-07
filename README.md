@@ -11,7 +11,7 @@ DuckDB launches and talks to over Apache Arrow. You `ATTACH` it and call its
 functions like any other.
 
 ```sql
-ATTACH 'fixed' (TYPE vgi, LOCATION './target/release/fixedformat-worker');
+ATTACH 'fixed' (TYPE vgi, LOCATION 'github-auto://Query-farm/vgi-fixedformat@v0.10.1');
 SET search_path = 'fixed.main';
 
 SELECT unpack_fixed('JOHN      00042', 'name:A10 qty:9(5)');
@@ -22,38 +22,38 @@ SELECT unpack_fixed('JOHN      00042', 'name:A10 qty:9(5)');
 
 ## Quick start
 
-**1. Get the worker binary.** Either download a prebuilt archive from the
-[Releases page](https://github.com/Query-farm/vgi-fixedformat/releases) for your
-platform (`vgi-fixedformat-<version>-<platform>.tar.gz`, where `<platform>` is
-one of `linux_amd64`, `linux_arm64`, `osx_amd64`, `osx_arm64`, `windows_amd64`)
-and unpack the `fixedformat-worker` executable…
+Every [GitHub release](https://github.com/Query-farm/vgi-fixedformat/releases) ships a prebuilt worker binary. The `vgi` extension downloads the one for your platform, checks its SHA-256 and caches it, so there is nothing to install besides DuckDB:
 
-```sh
-# Replace <version> with the release tag, e.g. v0.4.0, and pick your platform.
-tar -xzf vgi-fixedformat-<version>-osx_arm64.tar.gz   # → fixedformat-worker
+```sql
+INSTALL vgi FROM community;
+LOAD vgi;
+
+ATTACH 'fixed' AS fixed (TYPE vgi, LOCATION 'github-auto://Query-farm/vgi-fixedformat@v0.10.1');
+
+-- Decode a fixed-width record into a typed struct with a template spec.
+SELECT fixed.main.unpack_fixed('JohnDoe  00042', 'A8 N');
+
+-- Introspect how a layout spec resolves — fields, types, byte offsets — without reading
+-- data.
+SELECT * FROM fixed.main.describe_fixed('name:A10 qty:9(5)');
 ```
 
-…or build it from source (needs Rust 1.90+):
+Prebuilt binaries cover macOS (Apple silicon), Linux (x86-64 and arm64) and Windows (x86-64). `github-auto://` needs an explicit release tag; change `@v0.10.1` to move to a newer release.
 
-```sh
-cargo build --release          # produces target/release/fixedformat-worker
-```
+### Other ways to run it
+
+- **Docker** (the image bundles the worker; needs a container runtime):
+
+  ```sql
+  ATTACH 'fixed' AS fixed (TYPE vgi, LOCATION 'docker://ghcr.io/query-farm/vgi-fixedformat:0.10.1');
+  ```
+
+- **Manual download.** Download the archive for your platform from the [releases page](https://github.com/Query-farm/vgi-fixedformat/releases), verify it against its `.sha256` file (a cosign `.cosign.bundle` is published alongside), unpack it, and set `LOCATION` to the path of the extracted worker executable.
 
 Each release archive is accompanied by a SHA256 checksum, a keyless `cosign`
 signature (`.cosign.bundle`), and a SLSA build-provenance attestation — see the
 [release-tooling docs](https://github.com/Query-farm/vgi-actions) for the verify
 recipe.
-
-**2. Attach it in DuckDB** (any DuckDB with the `vgi` community extension):
-
-```sql
-INSTALL vgi FROM community;    -- one time
-ATTACH 'fixed' (TYPE vgi, LOCATION '/absolute/path/to/fixedformat-worker');
-SET search_path = 'fixed.main';   -- so you can call functions unqualified
-```
-
-Use an **absolute** `LOCATION` (it's resolved relative to DuckDB's working
-directory).
 
 ### Compatibility & limits
 
@@ -75,6 +75,25 @@ directory).
   decompression bomb, a single record by 512 MiB, and `DECIMAL` precision by 38.
   An `http(s)://` read to an internal host (cloud metadata, loopback, RFC-1918)
   is refused — set `FIXEDFORMAT_ALLOW_INTERNAL_HOSTS=1` to override.
+
+### Build from source
+
+Build the worker with Cargo (needs Rust 1.90+):
+
+```sh
+cargo build --release          # produces target/release/fixedformat-worker
+```
+
+then attach the local binary:
+
+```sql
+INSTALL vgi FROM community;    -- one time
+ATTACH 'fixed' (TYPE vgi, LOCATION '/absolute/path/to/fixedformat-worker');
+SET search_path = 'fixed.main';   -- so you can call functions unqualified
+```
+
+Use an **absolute** `LOCATION` (it's resolved relative to DuckDB's working
+directory). See [Development](#development) for the test suite.
 
 ---
 
