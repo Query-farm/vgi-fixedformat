@@ -900,7 +900,7 @@ checksum = "1c66915cc5391097de7a2b0b972e8505aa33c0df401fd3a6811dbdb32881ba48"
 
 [[package]]
 name = "fixedformat-core"
-version = "0.10.0"
+version = "0.10.1"
 dependencies = [
  "chrono",
  "flate2",
@@ -913,7 +913,7 @@ dependencies = [
 
 [[package]]
 name = "fixedformat-wasm"
-version = "0.10.0"
+version = "0.10.1"
 dependencies = [
  "fixedformat-worker",
  "vgi",
@@ -921,7 +921,7 @@ dependencies = [
 
 [[package]]
 name = "fixedformat-worker"
-version = "0.10.0"
+version = "0.10.1"
 dependencies = [
  "arrow",
  "arrow-array",
