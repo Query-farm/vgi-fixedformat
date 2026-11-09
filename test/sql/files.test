@@ -75,7 +75,7 @@ statement error
 SELECT * FROM fixed.main.read_fixed('data/accounts.dat', 'name:A10 qty:9(5)',
     compression => 'lz4');
 ----
-unknown compression
+argument compression: must be one of
 
 # Fixed-length unframed (no delimiters): two 15-byte records.
 query T

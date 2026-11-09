@@ -46,8 +46,8 @@ SELECT * FROM read_fixed('data/does_not_exist.dat', 'name:A10');
 ----
 File not found
 
-# Unknown encoding option.
+# Unknown encoding option (rejected at bind against the declared allowed values).
 statement error
 SELECT * FROM read_fixed('data/accounts.dat', 'name:A10 qty:9(5)', encoding => 'klingon');
 ----
-unknown encoding
+argument encoding: must be one of
