@@ -51,9 +51,12 @@ fn catalog_metadata(name: &str) -> CatalogModel {
                 .to_string(),
         ),
         tags: vec![
+            ("vgi.title".to_string(), "Fixed-Width Records".to_string()),
             (
-                "vgi.title".to_string(),
-                "Fixed-Width & COBOL Copybook Codec".to_string(),
+                "vgi.subtitle".to_string(),
+                "Parse, write, and inspect fixed-width, struct-template, and COBOL copybook \
+                 records as typed columns."
+                    .to_string(),
             ),
             (
                 "vgi.keywords".to_string(),
@@ -265,7 +268,7 @@ fn catalog_metadata(name: &str) -> CatalogModel {
                     .to_string(),
             ),
             tags: vec![
-                ("vgi.title".to_string(), "Fixed Format — main".to_string()),
+                ("vgi.title".to_string(), "Record Codec Functions".to_string()),
                 (
                     "vgi.keywords".to_string(),
                     crate::meta::keywords_json(
@@ -461,7 +464,7 @@ fn catalog_metadata(name: &str) -> CatalogModel {
                 tags: vec![
                     (
                         "vgi.title".to_string(),
-                        "Fixed Format — Spec Reference".to_string(),
+                        "Spec Format Reference".to_string(),
                     ),
                     crate::meta::category("Layout Introspection"),
                     ("domain".to_string(), "data-engineering".to_string()),
