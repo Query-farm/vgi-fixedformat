@@ -58,7 +58,7 @@ recipe.
 ### Compatibility & limits
 
 - **DuckDB / vgi:** needs a DuckDB with the `vgi` community extension (the worker
-  speaks Arrow IPC over the VGI protocol). Built against `vgi 0.50.0` (VGI protocol 3.2, haybarn 2.0) / arrow 59;
+  speaks Arrow IPC over the VGI protocol). Built against `vgi 0.50.1` (VGI protocol 3.2, haybarn 2.0) / arrow 59;
   the prebuilt binaries are platform-specific (download the one matching your OS
   and CPU). If `ATTACH` fails with an opaque Arrow/IPC error, you most likely have
   a mismatched `vgi` extension version — update it (`UPDATE EXTENSIONS;`).
