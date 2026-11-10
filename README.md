@@ -11,7 +11,7 @@ DuckDB launches and talks to over Apache Arrow. You `ATTACH` it and call its
 functions like any other.
 
 ```sql
-ATTACH 'fixed' (TYPE vgi, LOCATION 'github-auto://Query-farm/vgi-fixedformat@v0.10.1');
+ATTACH 'fixed' (TYPE vgi, LOCATION 'github-auto://Query-farm/vgi-fixedformat@v0.11.0');
 SET search_path = 'fixed.main';
 
 SELECT unpack_fixed('JOHN      00042', 'name:A10 qty:9(5)');
@@ -28,7 +28,7 @@ Every [GitHub release](https://github.com/Query-farm/vgi-fixedformat/releases) s
 INSTALL vgi FROM community;
 LOAD vgi;
 
-ATTACH 'fixed' AS fixed (TYPE vgi, LOCATION 'github-auto://Query-farm/vgi-fixedformat@v0.10.1');
+ATTACH 'fixed' AS fixed (TYPE vgi, LOCATION 'github-auto://Query-farm/vgi-fixedformat@v0.11.0');
 
 -- Decode a fixed-width record into a typed struct with a template spec.
 SELECT fixed.main.unpack_fixed('JohnDoe  00042', 'A8 N');
@@ -38,14 +38,14 @@ SELECT fixed.main.unpack_fixed('JohnDoe  00042', 'A8 N');
 SELECT * FROM fixed.main.describe_fixed('name:A10 qty:9(5)');
 ```
 
-Prebuilt binaries cover macOS (Apple silicon), Linux (x86-64 and arm64) and Windows (x86-64). `github-auto://` needs an explicit release tag; change `@v0.10.1` to move to a newer release.
+Prebuilt binaries cover macOS (Apple silicon), Linux (x86-64 and arm64) and Windows (x86-64). `github-auto://` needs an explicit release tag; change `@v0.11.0` to move to a newer release.
 
 ### Other ways to run it
 
 - **Docker** (the image bundles the worker; needs a container runtime):
 
   ```sql
-  ATTACH 'fixed' AS fixed (TYPE vgi, LOCATION 'docker://ghcr.io/query-farm/vgi-fixedformat:0.10.1');
+  ATTACH 'fixed' AS fixed (TYPE vgi, LOCATION 'docker://ghcr.io/query-farm/vgi-fixedformat:0.11.0');
   ```
 
 - **Manual download.** Download the archive for your platform from the [releases page](https://github.com/Query-farm/vgi-fixedformat/releases), verify it against its `.sha256` file (a cosign `.cosign.bundle` is published alongside), unpack it, and set `LOCATION` to the path of the extracted worker executable.
