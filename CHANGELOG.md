@@ -4,6 +4,13 @@ All notable changes to `vgi-fixedformat` are documented here. The format is
 based on [Keep a Changelog](https://keepachangelog.com/), and the project follows
 [Semantic Versioning](https://semver.org/).
 
+## [0.12.0] — VGI protocol 3.3
+
+### Changed
+- Ported to VGI protocol `vgi.v3` 3.3: `vgi` 0.50.1 → 0.51.0, `vgi-rpc`
+  0.32.3 → 0.32.4 (arrow stays on 59). Requires the current VGI DuckDB
+  extension; 3.2 extensions are incompatible. No change to the SQL surface.
+
 ## [0.9.3] — canonical wasm worker ABI
 
 ### Added

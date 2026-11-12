@@ -12,7 +12,7 @@ members = [
 default-members = ["crates/fixedformat-core", "crates/fixedformat-worker"]
 
 [workspace.package]
-version = "0.11.0"
+version = "0.12.0"
 edition = "2021"
 rust-version = "1.97"
 license = "MIT"
@@ -27,8 +27,8 @@ repository = "https://github.com/Query-farm/vgi-fixedformat"
 # NOT — tokio/mio/axum and bundled SQLite do not compile for wasm32, and the
 # browser transport serves over a byte channel rather than HTTP. Features are
 # additive, and the two are behind mutually-exclusive target cfgs.
-vgi = { version = "0.50.1", default-features = false }
-vgi-rpc = { version = "0.32.3", default-features = false, features = ["macros"] }
+vgi = { version = "0.51.0", default-features = false }
+vgi-rpc = { version = "0.32.4", default-features = false, features = ["macros"] }
 arrow = { version = "59.2", default-features = false, features = ["ipc"] }
 arrow-array = "59.2"
 arrow-buffer = "59.2"
