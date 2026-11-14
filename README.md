@@ -609,5 +609,5 @@ The codebase splits into a pure-logic crate and a thin adapter — see
 
 ## Executable notebooks
 
-See [the SQL-first Python notebook](notebooks/README.md) for field inspection,
-byte-preserving round trips and independent decimal-scale reconciliation.
+See [the SQL-first Python notebooks](notebooks/README.md) for byte layouts, independent
+decimal-scale reconciliation, and mixed-record filtering with rebuilt export controls.

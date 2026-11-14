@@ -1,0 +1,45 @@
+{
+  "collector": "Haybarn 2.0.0rc11 actual engine catalog export",
+  "query": "SELECT * FROM duckdb_views() WHERE database_name='fixed'",
+  "captured_at": "2026-11-14T18:07:48.798649+00:00",
+  "columns": [
+    "database_name",
+    "database_oid",
+    "schema_name",
+    "schema_oid",
+    "view_name",
+    "view_oid",
+    "comment",
+    "tags",
+    "internal",
+    "temporary",
+    "column_count",
+    "sql",
+    "is_bound"
+  ],
+  "rows": [
+    [
+      "fixed",
+      22596,
+      "main",
+      22802,
+      "spec_reference",
+      22803,
+      "Reference registry of the worker's spec formats, encoding / framing / compression option tokens, and field-kind to DuckDB-type mappings.",
+      {
+        "domain": "data-engineering",
+        "vgi.category": "Layout Introspection",
+        "vgi.doc_llm": "A static lookup table of the fixed-format worker's own vocabulary, so an agent can discover the valid option tokens and type mappings before building a `spec`. One row per (topic, token): the `topic` column groups the rows into `spec_format` (the three auto-detected layout formats \u2014 template, json, copybook), `encoding` (ascii / ebcdic), `framing` (newline / fixed / rdw / rdw_blocked), `compression` (auto / none / gzip / zstd), and `field_kind` (how each layout field kind maps to a DuckDB column type). The `token` column is the accepted value (or field-kind name), `maps_to` is the resulting DuckDB type for field_kind rows (empty otherwise), and `description` explains it. Query it to enumerate the legal `encoding =>` / `framing =>` / `compression =>` / `format =>` values, or to see which DuckDB type a COMP-3 or OCCURS field becomes.",
+        "vgi.doc_md": "# spec_reference\n\nA browsable, credential-free registry of the `fixed` worker's own vocabulary \u2014 query it to discover valid option values and type mappings before constructing a layout `spec`.\n\nEach row is a (topic, token) pair:\n\n- **topic** \u2014 one of `spec_format`, `encoding`, `framing`, `compression`, or `field_kind`.\n- **token** \u2014 the accepted value for that topic (or the field-kind name).\n- **maps_to** \u2014 for `field_kind` rows, the DuckDB column type the kind maps to; empty otherwise.\n- **description** \u2014 a one-line explanation.\n\nFor example, filter `topic = 'framing'` to list the record-framing modes, or `topic = 'field_kind'` to see how a COMP-3 or OCCURS field is typed.",
+        "vgi.example_queries": "[{\"description\":\"List the record-framing modes the worker accepts, with their meanings.\",\"sql\":\"SELECT token, description FROM fixed.main.spec_reference WHERE topic = 'framing' ORDER BY token\"},{\"description\":\"Show how each layout field kind maps to a DuckDB column type.\",\"sql\":\"SELECT token AS field_kind, maps_to AS duckdb_type FROM fixed.main.spec_reference WHERE topic = 'field_kind' ORDER BY token\"}]",
+        "vgi.keywords": "[\"reference\",\"vocabulary\",\"spec format\",\"template\",\"json\",\"copybook\",\"encoding\",\"ascii\",\"ebcdic\",\"framing\",\"newline\",\"rdw\",\"compression\",\"gzip\",\"zstd\",\"field kind\",\"DuckDB type\",\"mapping\",\"cheat sheet\"]",
+        "vgi.title": "Spec Format Reference"
+      },
+      false,
+      false,
+      null,
+      "CREATE VIEW spec_reference AS SELECT * FROM (SELECT * FROM (VALUES ('spec_format', 'template', '', 'Perl/Python unpack template string, e.g. name:A10 qty:9(5).'), ('spec_format', 'json', '', 'JSON field list (a field may nest a `fields` array for `STRUCT` / `LIST`-of-`STRUCT` sub-records).'), ('spec_format', 'copybook', '', 'COBOL copybook text (PIC clauses, OCCURS, REDEFINES, COMP-3).'), ('encoding', 'ascii', '', 'Plain ASCII / Latin-1 bytes (the default).'), ('encoding', 'ebcdic', '', 'EBCDIC code page CP037 (IBM mainframe); also governs zoned / COMP-3 sign nibbles.'), ('framing', 'newline', '', 'Records separated by a newline byte (the default).'), ('framing', 'fixed', '', 'Back-to-back records of equal byte length (no separator).'), ('framing', 'rdw', '', 'IBM variable-length records, each prefixed by a Record Descriptor Word.'), ('framing', 'rdw_blocked', '', 'RDW records grouped into blocks, each prefixed by a Block Descriptor Word.'), ('compression', 'auto', '', 'Detect gzip / zstd from magic bytes on read; derive from the file extension on write (the default).'), ('compression', 'none', '', 'No compression (raw bytes).'), ('compression', 'gzip', '', 'gzip (DEFLATE) whole-file compression.'), ('compression', 'zstd', '', 'Zstandard whole-file compression.'), ('field_kind', 'text / hex', 'VARCHAR', 'A character or hex field decoded to a string.'), ('field_kind', 'integer', 'BIGINT', 'A zoned or binary integer field.'), ('field_kind', 'float / double', 'DOUBLE', 'An IEEE floating-point field.'), ('field_kind', 'packed / zoned / implied-point', 'DECIMAL(p,s)', 'A COMP-3 packed, zoned, or implied-decimal-point number.'), ('field_kind', 'boolean', 'BOOLEAN', 'A single-flag boolean field.'), ('field_kind', 'occurs / repeat', 'LIST', 'A repeating field (OCCURS or OCCURS DEPENDING ON) as a LIST of the element type.'), ('field_kind', 'group / redefines', 'STRUCT', 'A group item, nested fields, or REDEFINES rendered as a STRUCT.')) AS valueslist) AS t(topic, token, maps_to, description);",
+      false
+    ]
+  ]
+}

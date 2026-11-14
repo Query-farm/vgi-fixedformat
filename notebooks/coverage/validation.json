@@ -1,0 +1,826 @@
+{
+  "schema_version": 1,
+  "status": "met",
+  "meets_target": true,
+  "catalogs": {
+    "released": {
+      "catalog_status": "verified",
+      "revision": "v0.12.0",
+      "catalog_sha256": "b929511180a243dfbc6e02b62bf008f7881265b374afef82b523b7f9ed90deec",
+      "collection_reconciled": true,
+      "denominator": 12,
+      "observed_objects": 12,
+      "required": 6,
+      "verified_count": 10,
+      "candidate_count": 0,
+      "fraction": 0.8333333333333334,
+      "meets_target": true,
+      "exact_runtime_count": 10,
+      "runtime_revisions": [
+        "v0.12.0"
+      ],
+      "covered": [
+        {
+          "schema": [
+            "main"
+          ],
+          "name": "describe_fixed"
+        },
+        {
+          "schema": [
+            "main"
+          ],
+          "name": "describe_multi"
+        },
+        {
+          "schema": [
+            "main"
+          ],
+          "name": "pack_fixed"
+        },
+        {
+          "schema": [
+            "main"
+          ],
+          "name": "read_fixed"
+        },
+        {
+          "schema": [
+            "main"
+          ],
+          "name": "read_multi"
+        },
+        {
+          "schema": [
+            "main"
+          ],
+          "name": "spec_reference"
+        },
+        {
+          "schema": [
+            "main"
+          ],
+          "name": "unpack_fixed"
+        },
+        {
+          "schema": [
+            "main"
+          ],
+          "name": "unpack_multi"
+        },
+        {
+          "schema": [
+            "main"
+          ],
+          "name": "write_fixed"
+        },
+        {
+          "schema": [
+            "main"
+          ],
+          "name": "write_multi"
+        }
+      ],
+      "uncovered": [
+        {
+          "schema": [
+            "main"
+          ],
+          "name": "copy_fixed"
+        },
+        {
+          "schema": [
+            "main"
+          ],
+          "name": "copy_to_fixed"
+        }
+      ],
+      "objects": [
+        {
+          "schema": [
+            "main"
+          ],
+          "name": "copy_fixed",
+          "kinds": [
+            "function"
+          ],
+          "signatures": [
+            "table copy_fixed(compression VARCHAR, encoding VARCHAR, endpoint VARCHAR, format VARCHAR, framing VARCHAR, max_decompressed_bytes BIGINT, record_length BIGINT, region VARCHAR, spec VARCHAR, url_style VARCHAR, use_ssl BOOLEAN) -> dynamic relation"
+          ],
+          "access": [
+            "read_write"
+          ],
+          "authentication": [
+            "optional"
+          ]
+        },
+        {
+          "schema": [
+            "main"
+          ],
+          "name": "copy_to_fixed",
+          "kinds": [
+            "function"
+          ],
+          "signatures": [
+            "table copy_to_fixed(compression VARCHAR, encoding VARCHAR, endpoint VARCHAR, format VARCHAR, framing VARCHAR, region VARCHAR, spec VARCHAR, url_style VARCHAR, use_ssl BOOLEAN) -> dynamic relation"
+          ],
+          "access": [
+            "write"
+          ],
+          "authentication": [
+            "optional"
+          ]
+        },
+        {
+          "schema": [
+            "main"
+          ],
+          "name": "describe_fixed",
+          "kinds": [
+            "function"
+          ],
+          "signatures": [
+            "table describe_fixed(spec VARCHAR, format VARCHAR) -> dynamic relation"
+          ],
+          "access": [
+            "read"
+          ],
+          "authentication": [
+            "none"
+          ]
+        },
+        {
+          "schema": [
+            "main"
+          ],
+          "name": "describe_multi",
+          "kinds": [
+            "function"
+          ],
+          "signatures": [
+            "table describe_multi(spec VARCHAR) -> dynamic relation"
+          ],
+          "access": [
+            "read"
+          ],
+          "authentication": [
+            "none"
+          ]
+        },
+        {
+          "schema": [
+            "main"
+          ],
+          "name": "pack_fixed",
+          "kinds": [
+            "function"
+          ],
+          "signatures": [
+            "scalar pack_fixed(data ANY, spec VARCHAR) -> BLOB",
+            "scalar pack_fixed(data ANY, spec VARCHAR, encoding VARCHAR) -> BLOB"
+          ],
+          "access": [
+            "read"
+          ],
+          "authentication": [
+            "none"
+          ]
+        },
+        {
+          "schema": [
+            "main"
+          ],
+          "name": "read_fixed",
+          "kinds": [
+            "function"
+          ],
+          "signatures": [
+            "table read_fixed(path ANY, spec VARCHAR, compression VARCHAR, encoding VARCHAR, endpoint VARCHAR, format VARCHAR, framing VARCHAR, max_decompressed_bytes BIGINT, record_length BIGINT, region VARCHAR, url_style VARCHAR, use_ssl BOOLEAN) -> dynamic relation"
+          ],
+          "access": [
+            "read"
+          ],
+          "authentication": [
+            "optional"
+          ]
+        },
+        {
+          "schema": [
+            "main"
+          ],
+          "name": "read_multi",
+          "kinds": [
+            "function"
+          ],
+          "signatures": [
+            "table read_multi(path ANY, spec VARCHAR, compression VARCHAR, encoding VARCHAR, endpoint VARCHAR, framing VARCHAR, max_decompressed_bytes BIGINT, record_length BIGINT, region VARCHAR, url_style VARCHAR, use_ssl BOOLEAN) -> dynamic relation"
+          ],
+          "access": [
+            "read"
+          ],
+          "authentication": [
+            "optional"
+          ]
+        },
+        {
+          "schema": [
+            "main"
+          ],
+          "name": "spec_reference",
+          "kinds": [
+            "table"
+          ],
+          "signatures": [
+            "VIEW spec_reference (None columns)"
+          ],
+          "access": [
+            "read"
+          ],
+          "authentication": [
+            "none"
+          ]
+        },
+        {
+          "schema": [
+            "main"
+          ],
+          "name": "unpack_fixed",
+          "kinds": [
+            "function"
+          ],
+          "signatures": [
+            "scalar unpack_fixed(rec ANY, spec VARCHAR) -> ANY",
+            "scalar unpack_fixed(rec ANY, spec VARCHAR, encoding VARCHAR) -> ANY"
+          ],
+          "access": [
+            "read"
+          ],
+          "authentication": [
+            "none"
+          ]
+        },
+        {
+          "schema": [
+            "main"
+          ],
+          "name": "unpack_multi",
+          "kinds": [
+            "function"
+          ],
+          "signatures": [
+            "scalar unpack_multi(rec ANY, spec VARCHAR) -> ANY",
+            "scalar unpack_multi(rec ANY, spec VARCHAR, encoding VARCHAR) -> ANY"
+          ],
+          "access": [
+            "read"
+          ],
+          "authentication": [
+            "none"
+          ]
+        },
+        {
+          "schema": [
+            "main"
+          ],
+          "name": "write_fixed",
+          "kinds": [
+            "function"
+          ],
+          "signatures": [
+            "table write_fixed(data TABLE, path VARCHAR, spec VARCHAR, compression VARCHAR, encoding VARCHAR, endpoint VARCHAR, format VARCHAR, framing VARCHAR, region VARCHAR, url_style VARCHAR, use_ssl BOOLEAN) -> dynamic relation"
+          ],
+          "access": [
+            "write"
+          ],
+          "authentication": [
+            "optional"
+          ]
+        },
+        {
+          "schema": [
+            "main"
+          ],
+          "name": "write_multi",
+          "kinds": [
+            "function"
+          ],
+          "signatures": [
+            "table write_multi(data TABLE, path VARCHAR, spec VARCHAR, compression VARCHAR, encoding VARCHAR, endpoint VARCHAR, framing VARCHAR, region VARCHAR, url_style VARCHAR, use_ssl BOOLEAN) -> dynamic relation"
+          ],
+          "access": [
+            "write"
+          ],
+          "authentication": [
+            "optional"
+          ]
+        }
+      ],
+      "issues": []
+    },
+    "current": {
+      "catalog_status": "verified",
+      "revision": "6b9aba4afa35a4a06378e9db6f07b1d6409e87ca",
+      "catalog_sha256": "84915717e1eeed9c00386fb19eba54158b87630ededd053a86f6051958b006c8",
+      "collection_reconciled": true,
+      "denominator": 12,
+      "observed_objects": 12,
+      "required": 6,
+      "verified_count": 10,
+      "candidate_count": 0,
+      "fraction": 0.8333333333333334,
+      "meets_target": true,
+      "exact_runtime_count": 0,
+      "runtime_revisions": [
+        "v0.12.0"
+      ],
+      "covered": [
+        {
+          "schema": [
+            "main"
+          ],
+          "name": "describe_fixed"
+        },
+        {
+          "schema": [
+            "main"
+          ],
+          "name": "describe_multi"
+        },
+        {
+          "schema": [
+            "main"
+          ],
+          "name": "pack_fixed"
+        },
+        {
+          "schema": [
+            "main"
+          ],
+          "name": "read_fixed"
+        },
+        {
+          "schema": [
+            "main"
+          ],
+          "name": "read_multi"
+        },
+        {
+          "schema": [
+            "main"
+          ],
+          "name": "spec_reference"
+        },
+        {
+          "schema": [
+            "main"
+          ],
+          "name": "unpack_fixed"
+        },
+        {
+          "schema": [
+            "main"
+          ],
+          "name": "unpack_multi"
+        },
+        {
+          "schema": [
+            "main"
+          ],
+          "name": "write_fixed"
+        },
+        {
+          "schema": [
+            "main"
+          ],
+          "name": "write_multi"
+        }
+      ],
+      "uncovered": [
+        {
+          "schema": [
+            "main"
+          ],
+          "name": "copy_fixed"
+        },
+        {
+          "schema": [
+            "main"
+          ],
+          "name": "copy_to_fixed"
+        }
+      ],
+      "objects": [
+        {
+          "schema": [
+            "main"
+          ],
+          "name": "copy_fixed",
+          "kinds": [
+            "function"
+          ],
+          "signatures": [
+            "table copy_fixed(compression VARCHAR, encoding VARCHAR, endpoint VARCHAR, format VARCHAR, framing VARCHAR, max_decompressed_bytes BIGINT, record_length BIGINT, region VARCHAR, spec VARCHAR, url_style VARCHAR, use_ssl BOOLEAN) -> dynamic relation"
+          ],
+          "access": [
+            "read_write"
+          ],
+          "authentication": [
+            "optional"
+          ]
+        },
+        {
+          "schema": [
+            "main"
+          ],
+          "name": "copy_to_fixed",
+          "kinds": [
+            "function"
+          ],
+          "signatures": [
+            "table copy_to_fixed(compression VARCHAR, encoding VARCHAR, endpoint VARCHAR, format VARCHAR, framing VARCHAR, region VARCHAR, spec VARCHAR, url_style VARCHAR, use_ssl BOOLEAN) -> dynamic relation"
+          ],
+          "access": [
+            "write"
+          ],
+          "authentication": [
+            "optional"
+          ]
+        },
+        {
+          "schema": [
+            "main"
+          ],
+          "name": "describe_fixed",
+          "kinds": [
+            "function"
+          ],
+          "signatures": [
+            "table describe_fixed(spec VARCHAR, format VARCHAR) -> dynamic relation"
+          ],
+          "access": [
+            "read"
+          ],
+          "authentication": [
+            "none"
+          ]
+        },
+        {
+          "schema": [
+            "main"
+          ],
+          "name": "describe_multi",
+          "kinds": [
+            "function"
+          ],
+          "signatures": [
+            "table describe_multi(spec VARCHAR) -> dynamic relation"
+          ],
+          "access": [
+            "read"
+          ],
+          "authentication": [
+            "none"
+          ]
+        },
+        {
+          "schema": [
+            "main"
+          ],
+          "name": "pack_fixed",
+          "kinds": [
+            "function"
+          ],
+          "signatures": [
+            "scalar pack_fixed(data ANY, spec VARCHAR) -> BLOB",
+            "scalar pack_fixed(data ANY, spec VARCHAR, encoding VARCHAR) -> BLOB"
+          ],
+          "access": [
+            "read"
+          ],
+          "authentication": [
+            "none"
+          ]
+        },
+        {
+          "schema": [
+            "main"
+          ],
+          "name": "read_fixed",
+          "kinds": [
+            "function"
+          ],
+          "signatures": [
+            "table read_fixed(path ANY, spec VARCHAR, compression VARCHAR, encoding VARCHAR, endpoint VARCHAR, format VARCHAR, framing VARCHAR, max_decompressed_bytes BIGINT, record_length BIGINT, region VARCHAR, url_style VARCHAR, use_ssl BOOLEAN) -> dynamic relation"
+          ],
+          "access": [
+            "read"
+          ],
+          "authentication": [
+            "optional"
+          ]
+        },
+        {
+          "schema": [
+            "main"
+          ],
+          "name": "read_multi",
+          "kinds": [
+            "function"
+          ],
+          "signatures": [
+            "table read_multi(path ANY, spec VARCHAR, compression VARCHAR, encoding VARCHAR, endpoint VARCHAR, framing VARCHAR, max_decompressed_bytes BIGINT, record_length BIGINT, region VARCHAR, url_style VARCHAR, use_ssl BOOLEAN) -> dynamic relation"
+          ],
+          "access": [
+            "read"
+          ],
+          "authentication": [
+            "optional"
+          ]
+        },
+        {
+          "schema": [
+            "main"
+          ],
+          "name": "spec_reference",
+          "kinds": [
+            "table"
+          ],
+          "signatures": [
+            "VIEW spec_reference (None columns)"
+          ],
+          "access": [
+            "read"
+          ],
+          "authentication": [
+            "none"
+          ]
+        },
+        {
+          "schema": [
+            "main"
+          ],
+          "name": "unpack_fixed",
+          "kinds": [
+            "function"
+          ],
+          "signatures": [
+            "scalar unpack_fixed(rec ANY, spec VARCHAR) -> ANY",
+            "scalar unpack_fixed(rec ANY, spec VARCHAR, encoding VARCHAR) -> ANY"
+          ],
+          "access": [
+            "read"
+          ],
+          "authentication": [
+            "none"
+          ]
+        },
+        {
+          "schema": [
+            "main"
+          ],
+          "name": "unpack_multi",
+          "kinds": [
+            "function"
+          ],
+          "signatures": [
+            "scalar unpack_multi(rec ANY, spec VARCHAR) -> ANY",
+            "scalar unpack_multi(rec ANY, spec VARCHAR, encoding VARCHAR) -> ANY"
+          ],
+          "access": [
+            "read"
+          ],
+          "authentication": [
+            "none"
+          ]
+        },
+        {
+          "schema": [
+            "main"
+          ],
+          "name": "write_fixed",
+          "kinds": [
+            "function"
+          ],
+          "signatures": [
+            "table write_fixed(data TABLE, path VARCHAR, spec VARCHAR, compression VARCHAR, encoding VARCHAR, endpoint VARCHAR, format VARCHAR, framing VARCHAR, region VARCHAR, url_style VARCHAR, use_ssl BOOLEAN) -> dynamic relation"
+          ],
+          "access": [
+            "write"
+          ],
+          "authentication": [
+            "optional"
+          ]
+        },
+        {
+          "schema": [
+            "main"
+          ],
+          "name": "write_multi",
+          "kinds": [
+            "function"
+          ],
+          "signatures": [
+            "table write_multi(data TABLE, path VARCHAR, spec VARCHAR, compression VARCHAR, encoding VARCHAR, endpoint VARCHAR, framing VARCHAR, region VARCHAR, url_style VARCHAR, use_ssl BOOLEAN) -> dynamic relation"
+          ],
+          "access": [
+            "write"
+          ],
+          "authentication": [
+            "optional"
+          ]
+        }
+      ],
+      "issues": []
+    }
+  },
+  "interface_drift": {
+    "known": true,
+    "current_only": [],
+    "released_only": [],
+    "changed": []
+  },
+  "notebooks": {
+    "01_a_round_trip_does_not_validate_the_scale.ipynb": {
+      "verified": true,
+      "issues": []
+    },
+    "02_filter_details_rebuild_the_envelope.ipynb": {
+      "verified": true,
+      "issues": []
+    }
+  },
+  "examples": [
+    {
+      "status": "verified",
+      "issues": [],
+      "verified_catalogs": [
+        "released",
+        "current"
+      ],
+      "object": {
+        "schema": [
+          "main"
+        ],
+        "name": "describe_fixed"
+      },
+      "notebook": "01_a_round_trip_does_not_validate_the_scale.ipynb",
+      "runtime_revision": "v0.12.0",
+      "runtime_catalog_sha256": "b929511180a243dfbc6e02b62bf008f7881265b374afef82b523b7f9ed90deec"
+    },
+    {
+      "status": "verified",
+      "issues": [],
+      "verified_catalogs": [
+        "released",
+        "current"
+      ],
+      "object": {
+        "schema": [
+          "main"
+        ],
+        "name": "unpack_fixed"
+      },
+      "notebook": "01_a_round_trip_does_not_validate_the_scale.ipynb",
+      "runtime_revision": "v0.12.0",
+      "runtime_catalog_sha256": "b929511180a243dfbc6e02b62bf008f7881265b374afef82b523b7f9ed90deec"
+    },
+    {
+      "status": "verified",
+      "issues": [],
+      "verified_catalogs": [
+        "released",
+        "current"
+      ],
+      "object": {
+        "schema": [
+          "main"
+        ],
+        "name": "pack_fixed"
+      },
+      "notebook": "01_a_round_trip_does_not_validate_the_scale.ipynb",
+      "runtime_revision": "v0.12.0",
+      "runtime_catalog_sha256": "b929511180a243dfbc6e02b62bf008f7881265b374afef82b523b7f9ed90deec"
+    },
+    {
+      "status": "verified",
+      "issues": [],
+      "verified_catalogs": [
+        "released",
+        "current"
+      ],
+      "object": {
+        "schema": [
+          "main"
+        ],
+        "name": "read_fixed"
+      },
+      "notebook": "01_a_round_trip_does_not_validate_the_scale.ipynb",
+      "runtime_revision": "v0.12.0",
+      "runtime_catalog_sha256": "b929511180a243dfbc6e02b62bf008f7881265b374afef82b523b7f9ed90deec"
+    },
+    {
+      "status": "verified",
+      "issues": [],
+      "verified_catalogs": [
+        "released",
+        "current"
+      ],
+      "object": {
+        "schema": [
+          "main"
+        ],
+        "name": "spec_reference"
+      },
+      "notebook": "02_filter_details_rebuild_the_envelope.ipynb",
+      "runtime_revision": "v0.12.0",
+      "runtime_catalog_sha256": "b929511180a243dfbc6e02b62bf008f7881265b374afef82b523b7f9ed90deec"
+    },
+    {
+      "status": "verified",
+      "issues": [],
+      "verified_catalogs": [
+        "released",
+        "current"
+      ],
+      "object": {
+        "schema": [
+          "main"
+        ],
+        "name": "describe_multi"
+      },
+      "notebook": "02_filter_details_rebuild_the_envelope.ipynb",
+      "runtime_revision": "v0.12.0",
+      "runtime_catalog_sha256": "b929511180a243dfbc6e02b62bf008f7881265b374afef82b523b7f9ed90deec"
+    },
+    {
+      "status": "verified",
+      "issues": [],
+      "verified_catalogs": [
+        "released",
+        "current"
+      ],
+      "object": {
+        "schema": [
+          "main"
+        ],
+        "name": "read_multi"
+      },
+      "notebook": "02_filter_details_rebuild_the_envelope.ipynb",
+      "runtime_revision": "v0.12.0",
+      "runtime_catalog_sha256": "b929511180a243dfbc6e02b62bf008f7881265b374afef82b523b7f9ed90deec"
+    },
+    {
+      "status": "verified",
+      "issues": [],
+      "verified_catalogs": [
+        "released",
+        "current"
+      ],
+      "object": {
+        "schema": [
+          "main"
+        ],
+        "name": "unpack_multi"
+      },
+      "notebook": "02_filter_details_rebuild_the_envelope.ipynb",
+      "runtime_revision": "v0.12.0",
+      "runtime_catalog_sha256": "b929511180a243dfbc6e02b62bf008f7881265b374afef82b523b7f9ed90deec"
+    },
+    {
+      "status": "verified",
+      "issues": [],
+      "verified_catalogs": [
+        "released",
+        "current"
+      ],
+      "object": {
+        "schema": [
+          "main"
+        ],
+        "name": "write_multi"
+      },
+      "notebook": "02_filter_details_rebuild_the_envelope.ipynb",
+      "runtime_revision": "v0.12.0",
+      "runtime_catalog_sha256": "b929511180a243dfbc6e02b62bf008f7881265b374afef82b523b7f9ed90deec"
+    },
+    {
+      "status": "verified",
+      "issues": [],
+      "verified_catalogs": [
+        "released",
+        "current"
+      ],
+      "object": {
+        "schema": [
+          "main"
+        ],
+        "name": "write_fixed"
+      },
+      "notebook": "02_filter_details_rebuild_the_envelope.ipynb",
+      "runtime_revision": "v0.12.0",
+      "runtime_catalog_sha256": "b929511180a243dfbc6e02b62bf008f7881265b374afef82b523b7f9ed90deec"
+    }
+  ],
+  "issues": []
+}

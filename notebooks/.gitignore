@@ -2,3 +2,5 @@
 __pycache__/
 .ipynb_checkpoints/
 validation/
+artifacts/
+.ruff_cache/

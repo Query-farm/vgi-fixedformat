@@ -1,0 +1,15 @@
+{
+  "repository": "Query-farm/vgi-fixedformat",
+  "released_tag": "v0.12.0",
+  "released_revision": "ec1fac097287dd836df8d1b9106ef86781b63d3b",
+  "current_public_revision": "6b9aba4afa35a4a06378e9db6f07b1d6409e87ca",
+  "engine": "Haybarn 2.0.0rc11 / VGI e75482339d",
+  "released_launch": "github-auto://Query-farm/vgi-fixedformat@v0.12.0",
+  "current_collection": "Separate build of unchanged current-public worker from locked Cargo dependencies; source validation only, not notebook launch.",
+  "current_root_lock_sha256": "4fbeac44cdae0ea3ea2ff98d804406b91fb893781c9263605c572a932c5ca3ba",
+  "comparison": "Full release/current source diff adds composed examples and changes example metadata; runtime functions, argument schemas, registrations and domain logic unchanged. Both actual catalogs expose eleven function names and one native view.",
+  "copy_handlers": "copy_fixed and copy_to_fixed are registered named catalog surfaces invoked via COPY formats fixed.fixed and fixed.fixed_out. They remain in denominator, explicitly uncovered; no hidden/internal flag exclusion.",
+  "signature_normalization": "Positional arguments retain their declared order; named table arguments are sorted to avoid nondeterministic export ordering. Raw exports preserve every original row and column. Overloads grouped as one logical surface.",
+  "data_isolation": "Both catalog probes used fresh TemporaryDirectory secret_directory, allow_persistent_secrets=False and empty initial duckdb_secrets(). Notebook writes target disposable local files only.",
+  "captured_at": "2026-11-14T18:17:56.194672+00:00"
+}

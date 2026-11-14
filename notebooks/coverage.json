@@ -1,0 +1,399 @@
+{
+  "schema_version": 1,
+  "catalogs": {
+    "released": {
+      "path": "coverage/catalog-released.json",
+      "sha256": "b929511180a243dfbc6e02b62bf008f7881265b374afef82b523b7f9ed90deec",
+      "review": {
+        "status": "approved",
+        "reviewer": "Codex /root/notebooks_ortools",
+        "reviewed_at": "2026-11-14T18:17:56.194672+00:00",
+        "catalog_sha256": "b929511180a243dfbc6e02b62bf008f7881265b374afef82b523b7f9ed90deec",
+        "notes": "Reviewed complete actual function/table/view union: 11 function names + spec_reference view =12 logical surfaces. Retains COPY handlers, local/cloud reads, writes and optional authentication. No silent omissions; reviewed current domain behavior unchanged from native release."
+      }
+    },
+    "current": {
+      "path": "coverage/catalog-current.json",
+      "sha256": "84915717e1eeed9c00386fb19eba54158b87630ededd053a86f6051958b006c8",
+      "review": {
+        "status": "approved",
+        "reviewer": "Codex /root/notebooks_ortools",
+        "reviewed_at": "2026-11-14T18:17:56.194672+00:00",
+        "catalog_sha256": "84915717e1eeed9c00386fb19eba54158b87630ededd053a86f6051958b006c8",
+        "notes": "Reviewed complete actual function/table/view union: 11 function names + spec_reference view =12 logical surfaces. Retains COPY handlers, local/cloud reads, writes and optional authentication. No silent omissions; reviewed current domain behavior unchanged from native release."
+      }
+    }
+  },
+  "notebooks": [
+    {
+      "path": "01_a_round_trip_does_not_validate_the_scale.ipynb",
+      "sha256": "feb0922524290a1133801361242f501433a4eebc979d3f21ee458d7ec907967f",
+      "execution": {
+        "path": "coverage/run-01.json",
+        "sha256": "e5fe05e759ea6403a9b333c3e2270edd3429706471a786f98d78c4dfe7260d0d"
+      }
+    },
+    {
+      "path": "02_filter_details_rebuild_the_envelope.ipynb",
+      "sha256": "9b231063ab72150f624886ecb1dd8b10c9e8dd90e98103b9531b33e2062e320f",
+      "execution": {
+        "path": "coverage/run-02.json",
+        "sha256": "7ef8f36f6847a9693b28e95030c95dd3c38fa7ae98ceaf3b397209d76616b47b"
+      }
+    }
+  ],
+  "examples": [
+    {
+      "object": {
+        "schema": "main",
+        "name": "describe_fixed"
+      },
+      "notebook": "01_a_round_trip_does_not_validate_the_scale.ipynb",
+      "sql": [
+        {
+          "cell": "f68a8340",
+          "reference": "fixed.main.describe_fixed"
+        }
+      ],
+      "narrative_cells": [
+        "1f281f09"
+      ],
+      "result_cells": [
+        "f68a8340",
+        "b303ad7e"
+      ],
+      "interpretation_cells": [
+        "b303ad7e"
+      ],
+      "review": {
+        "status": "approved",
+        "reviewer": "Codex /root/notebooks_ortools",
+        "reviewed_at": "2026-11-14T18:17:56.194672+00:00",
+        "notebook_sha256": "feb0922524290a1133801361242f501433a4eebc979d3f21ee458d7ec907967f",
+        "catalog_sha256": [
+          "b929511180a243dfbc6e02b62bf008f7881265b374afef82b523b7f9ed90deec",
+          "84915717e1eeed9c00386fb19eba54158b87630ededd053a86f6051958b006c8"
+        ],
+        "purpose": "Establish the physical byte boundaries before interpreting amounts.",
+        "finding": "The returned four fields cover 24 contiguous bytes. Nine amount digits start at offset15; moving the implied scale changes values without moving any boundary."
+      }
+    },
+    {
+      "object": {
+        "schema": "main",
+        "name": "unpack_fixed"
+      },
+      "notebook": "01_a_round_trip_does_not_validate_the_scale.ipynb",
+      "sql": [
+        {
+          "cell": "2fd5df83",
+          "reference": "fixed.main.unpack_fixed"
+        }
+      ],
+      "narrative_cells": [
+        "763a144e"
+      ],
+      "result_cells": [
+        "2fd5df83",
+        "c73c9f6d"
+      ],
+      "interpretation_cells": [
+        "c73c9f6d"
+      ],
+      "review": {
+        "status": "approved",
+        "reviewer": "Codex /root/notebooks_ortools",
+        "reviewed_at": "2026-11-14T18:17:56.194672+00:00",
+        "notebook_sha256": "feb0922524290a1133801361242f501433a4eebc979d3f21ee458d7ec907967f",
+        "catalog_sha256": [
+          "b929511180a243dfbc6e02b62bf008f7881265b374afef82b523b7f9ed90deec",
+          "84915717e1eeed9c00386fb19eba54158b87630ededd053a86f6051958b006c8"
+        ],
+        "purpose": "Decode canonical synthetic records and reconcile against independently supplied account controls.",
+        "finding": "At scale2 both accounts reconcile, net241.84 syntheticUSD. Scale3 preserves parse structure but changes net to24.184 and both controls fail."
+      }
+    },
+    {
+      "object": {
+        "schema": "main",
+        "name": "pack_fixed"
+      },
+      "notebook": "01_a_round_trip_does_not_validate_the_scale.ipynb",
+      "sql": [
+        {
+          "cell": "439597e4",
+          "reference": "fixed.main.pack_fixed"
+        }
+      ],
+      "narrative_cells": [
+        "cece114d"
+      ],
+      "result_cells": [
+        "439597e4",
+        "a33f3944"
+      ],
+      "interpretation_cells": [
+        "a33f3944"
+      ],
+      "review": {
+        "status": "approved",
+        "reviewer": "Codex /root/notebooks_ortools",
+        "reviewed_at": "2026-11-14T18:17:56.194672+00:00",
+        "notebook_sha256": "feb0922524290a1133801361242f501433a4eebc979d3f21ee458d7ec907967f",
+        "catalog_sha256": [
+          "b929511180a243dfbc6e02b62bf008f7881265b374afef82b523b7f9ed90deec",
+          "84915717e1eeed9c00386fb19eba54158b87630ededd053a86f6051958b006c8"
+        ],
+        "purpose": "Test the limited claim made by a byte-preserving decode/encode round trip.",
+        "finding": "All six records preserve their24 bytes under both scales; a consistent inverse is not independent evidence that the selected amount interpretation is correct."
+      }
+    },
+    {
+      "object": {
+        "schema": "main",
+        "name": "read_fixed"
+      },
+      "notebook": "01_a_round_trip_does_not_validate_the_scale.ipynb",
+      "sql": [
+        {
+          "cell": "337a9d62",
+          "reference": "fixed.main.read_fixed"
+        }
+      ],
+      "narrative_cells": [
+        "ef063b60"
+      ],
+      "result_cells": [
+        "337a9d62",
+        "a33f3944"
+      ],
+      "interpretation_cells": [
+        "a33f3944"
+      ],
+      "review": {
+        "status": "approved",
+        "reviewer": "Codex /root/notebooks_ortools",
+        "reviewed_at": "2026-11-14T18:17:56.194672+00:00",
+        "notebook_sha256": "feb0922524290a1133801361242f501433a4eebc979d3f21ee458d7ec907967f",
+        "catalog_sha256": [
+          "b929511180a243dfbc6e02b62bf008f7881265b374afef82b523b7f9ed90deec",
+          "84915717e1eeed9c00386fb19eba54158b87630ededd053a86f6051958b006c8"
+        ],
+        "purpose": "Verify the same layout when framing a file rather than a scalar record.",
+        "finding": "Uncompressed ASCII file with24-byte fixed framing agrees with scalar decoding including multiplicity; successful framing and transport do not replace independent control reconciliation."
+      }
+    },
+    {
+      "object": {
+        "schema": "main",
+        "name": "spec_reference"
+      },
+      "notebook": "02_filter_details_rebuild_the_envelope.ipynb",
+      "sql": [
+        {
+          "cell": "attach",
+          "reference": "fixed.main.spec_reference"
+        }
+      ],
+      "narrative_cells": [
+        "attach-note"
+      ],
+      "result_cells": [
+        "attach",
+        "write-input"
+      ],
+      "interpretation_cells": [
+        "write-input"
+      ],
+      "review": {
+        "status": "approved",
+        "reviewer": "Codex /root/notebooks_ortools",
+        "reviewed_at": "2026-11-14T18:17:56.194672+00:00",
+        "notebook_sha256": "9b231063ab72150f624886ecb1dd8b10c9e8dd90e98103b9531b33e2062e320f",
+        "catalog_sha256": [
+          "b929511180a243dfbc6e02b62bf008f7881265b374afef82b523b7f9ed90deec",
+          "84915717e1eeed9c00386fb19eba54158b87630ededd053a86f6051958b006c8"
+        ],
+        "purpose": "Choose framing and encoding using the worker vocabulary and returned variant lengths.",
+        "finding": "Reference distinguishes newline-separated records from equal-length back-to-back fixed framing. Actual9/12/11-byte variant lengths justify ASCII/newline/no-compression choices; reference is applied to subsequent real file calls."
+      }
+    },
+    {
+      "object": {
+        "schema": "main",
+        "name": "describe_multi"
+      },
+      "notebook": "02_filter_details_rebuild_the_envelope.ipynb",
+      "sql": [
+        {
+          "cell": "layout",
+          "reference": "fixed.main.describe_multi"
+        }
+      ],
+      "narrative_cells": [
+        "layout-story"
+      ],
+      "result_cells": [
+        "layout",
+        "write-input"
+      ],
+      "interpretation_cells": [
+        "write-input"
+      ],
+      "review": {
+        "status": "approved",
+        "reviewer": "Codex /root/notebooks_ortools",
+        "reviewed_at": "2026-11-14T18:17:56.194672+00:00",
+        "notebook_sha256": "9b231063ab72150f624886ecb1dd8b10c9e8dd90e98103b9531b33e2062e320f",
+        "catalog_sha256": [
+          "b929511180a243dfbc6e02b62bf008f7881265b374afef82b523b7f9ed90deec",
+          "84915717e1eeed9c00386fb19eba54158b87630ededd053a86f6051958b006c8"
+        ],
+        "purpose": "Inspect the discriminator offsets and each variant type before decoding a heterogeneous file.",
+        "finding": "Returned layouts establish9-byte headers,12-byte details and11-byte trailers; one-byte tag precedes per-variant fields. The unequal lengths explain why a shared unpadded fixed framing is unsuitable."
+      }
+    },
+    {
+      "object": {
+        "schema": "main",
+        "name": "read_multi"
+      },
+      "notebook": "02_filter_details_rebuild_the_envelope.ipynb",
+      "sql": [
+        {
+          "cell": "decode",
+          "reference": "fixed.main.read_multi"
+        }
+      ],
+      "narrative_cells": [
+        "decode-story"
+      ],
+      "result_cells": [
+        "decode",
+        "incoming-accepted"
+      ],
+      "interpretation_cells": [
+        "incoming-accepted"
+      ],
+      "review": {
+        "status": "approved",
+        "reviewer": "Codex /root/notebooks_ortools",
+        "reviewed_at": "2026-11-14T18:17:56.194672+00:00",
+        "notebook_sha256": "9b231063ab72150f624886ecb1dd8b10c9e8dd90e98103b9531b33e2062e320f",
+        "catalog_sha256": [
+          "b929511180a243dfbc6e02b62bf008f7881265b374afef82b523b7f9ed90deec",
+          "84915717e1eeed9c00386fb19eba54158b87630ededd053a86f6051958b006c8"
+        ],
+        "purpose": "Decode and validate a mixed header/detail/trailer envelope before deriving any export.",
+        "finding": "One header, four details totaling84 units and one trailer agree with declared controls. Inactive union variants remainNULL, and scalar/file records agree including input order."
+      }
+    },
+    {
+      "object": {
+        "schema": "main",
+        "name": "unpack_multi"
+      },
+      "notebook": "02_filter_details_rebuild_the_envelope.ipynb",
+      "sql": [
+        {
+          "cell": "select",
+          "reference": "fixed.main.unpack_multi"
+        }
+      ],
+      "narrative_cells": [
+        "select-story"
+      ],
+      "result_cells": [
+        "select",
+        "selection-chart"
+      ],
+      "interpretation_cells": [
+        "selection-chart"
+      ],
+      "review": {
+        "status": "approved",
+        "reviewer": "Codex /root/notebooks_ortools",
+        "reviewed_at": "2026-11-14T18:17:56.194672+00:00",
+        "notebook_sha256": "9b231063ab72150f624886ecb1dd8b10c9e8dd90e98103b9531b33e2062e320f",
+        "catalog_sha256": [
+          "b929511180a243dfbc6e02b62bf008f7881265b374afef82b523b7f9ed90deec",
+          "84915717e1eeed9c00386fb19eba54158b87630ededd053a86f6051958b006c8"
+        ],
+        "purpose": "Construct a typed replacement trailer compatible with the original union after selecting details.",
+        "finding": "Defaultthreshold10 retains3 lines/77 units; scalar-decoded replacement trailer carries those controls. Experiment20 instead yields2/65, while the original declared4/84 remains unchanged."
+      }
+    },
+    {
+      "object": {
+        "schema": "main",
+        "name": "write_multi"
+      },
+      "notebook": "02_filter_details_rebuild_the_envelope.ipynb",
+      "sql": [
+        {
+          "cell": "export",
+          "reference": "fixed.main.write_multi"
+        }
+      ],
+      "narrative_cells": [
+        "export-story"
+      ],
+      "result_cells": [
+        "export",
+        "bytes-chart",
+        "checks-report"
+      ],
+      "interpretation_cells": [
+        "bytes-chart"
+      ],
+      "review": {
+        "status": "approved",
+        "reviewer": "Codex /root/notebooks_ortools",
+        "reviewed_at": "2026-11-14T18:17:56.194672+00:00",
+        "notebook_sha256": "9b231063ab72150f624886ecb1dd8b10c9e8dd90e98103b9531b33e2062e320f",
+        "catalog_sha256": [
+          "b929511180a243dfbc6e02b62bf008f7881265b374afef82b523b7f9ed90deec",
+          "84915717e1eeed9c00386fb19eba54158b87630ededd053a86f6051958b006c8"
+        ],
+        "purpose": "Produce a corrected mixed delivery and validate the actual written file.",
+        "finding": "Default mixed export includes header +3details +rebuilt trailer,5records/61bytes. Readback preserves every ordered unionvalue and reconciles its own controls; experiment produces4records/48bytes."
+      }
+    },
+    {
+      "object": {
+        "schema": "main",
+        "name": "write_fixed"
+      },
+      "notebook": "02_filter_details_rebuild_the_envelope.ipynb",
+      "sql": [
+        {
+          "cell": "export",
+          "reference": "fixed.main.write_fixed"
+        }
+      ],
+      "narrative_cells": [
+        "export-story"
+      ],
+      "result_cells": [
+        "export",
+        "bytes-chart",
+        "checks-report"
+      ],
+      "interpretation_cells": [
+        "bytes-chart"
+      ],
+      "review": {
+        "status": "approved",
+        "reviewer": "Codex /root/notebooks_ortools",
+        "reviewed_at": "2026-11-14T18:17:56.194672+00:00",
+        "notebook_sha256": "9b231063ab72150f624886ecb1dd8b10c9e8dd90e98103b9531b33e2062e320f",
+        "catalog_sha256": [
+          "b929511180a243dfbc6e02b62bf008f7881265b374afef82b523b7f9ed90deec",
+          "84915717e1eeed9c00386fb19eba54158b87630ededd053a86f6051958b006c8"
+        ],
+        "purpose": "Produce a homogeneous selected-detail extract and explain what its smaller contract omits.",
+        "finding": "Default flat output is3detailrows/36bytes, experiment2/24. Actual readback retains SKU quantities; reduction includes removal of header, trailer and discriminators, not compression."
+      }
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "collector": "Haybarn 2.0.0rc11 actual engine catalog export",
+  "query": "SELECT * FROM duckdb_tables() WHERE database_name='fixed'",
+  "captured_at": "2026-11-14T18:08:04.599544+00:00",
+  "columns": [
+    "database_name",
+    "database_oid",
+    "schema_name",
+    "schema_oid",
+    "table_name",
+    "table_oid",
+    "comment",
+    "tags",
+    "internal",
+    "temporary",
+    "has_primary_key",
+    "estimated_size",
+    "column_count",
+    "index_count",
+    "check_constraint_count",
+    "sql"
+  ],
+  "rows": []
+}

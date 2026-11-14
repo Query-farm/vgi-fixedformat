@@ -1,0 +1,183 @@
+{
+  "schema_version": 1,
+  "repository": "Query-farm/vgi-fixedformat",
+  "revision": "v0.12.0",
+  "captured_at": "2026-11-14T18:17:56.194672+00:00",
+  "default_schema": "main",
+  "scope": "all_public_functions_and_tables",
+  "complete": true,
+  "evidence": [
+    {
+      "path": "coverage/released-functions.json",
+      "sha256": "82bdc66f46a331b8ff9c5be71178758fe4da26571a7f2b9c74190c34cc827e0a",
+      "description": "Complete actual worker-filtered duckdb_functions() export; physical tables explicitly empty."
+    },
+    {
+      "path": "coverage/released-tables.json",
+      "sha256": "e5321459c697b06aebedcf7d95a6c558fc63c348d3229ce2af6b6c87a27a6d97",
+      "description": "Complete actual worker-filtered duckdb_tables() export; physical tables explicitly empty."
+    },
+    {
+      "path": "coverage/released-views.json",
+      "sha256": "a84f7d87afac8e6ab866dddb197ced32ead725c98d47e60384ab698efd990c08",
+      "description": "Complete actual worker-filtered duckdb_views() export; physical tables explicitly empty."
+    },
+    {
+      "path": "coverage/catalog-provenance.json",
+      "sha256": "b9066a27f99ecf9a9a7ccb75322af27c126626260f8b86fb712c96c5365f3ca6",
+      "description": "Source/release identity, COPY handler inclusion and reviewed unchanged runtime implementation."
+    }
+  ],
+  "objects": [
+    {
+      "schema": "main",
+      "name": "read_multi",
+      "kind": "function",
+      "signatures": [
+        "table read_multi(path ANY, spec VARCHAR, compression VARCHAR, encoding VARCHAR, endpoint VARCHAR, framing VARCHAR, max_decompressed_bytes BIGINT, record_length BIGINT, region VARCHAR, url_style VARCHAR, use_ssl BOOLEAN) -> dynamic relation"
+      ],
+      "authentication": "optional",
+      "access": "read"
+    },
+    {
+      "schema": "main",
+      "name": "write_multi",
+      "kind": "function",
+      "signatures": [
+        "table write_multi(data TABLE, path VARCHAR, spec VARCHAR, compression VARCHAR, encoding VARCHAR, endpoint VARCHAR, framing VARCHAR, region VARCHAR, url_style VARCHAR, use_ssl BOOLEAN) -> dynamic relation"
+      ],
+      "authentication": "optional",
+      "access": "write"
+    },
+    {
+      "schema": "main",
+      "name": "read_fixed",
+      "kind": "function",
+      "signatures": [
+        "table read_fixed(path ANY, spec VARCHAR, compression VARCHAR, encoding VARCHAR, endpoint VARCHAR, format VARCHAR, framing VARCHAR, max_decompressed_bytes BIGINT, record_length BIGINT, region VARCHAR, url_style VARCHAR, use_ssl BOOLEAN) -> dynamic relation"
+      ],
+      "authentication": "optional",
+      "access": "read"
+    },
+    {
+      "schema": "main",
+      "name": "describe_multi",
+      "kind": "function",
+      "signatures": [
+        "table describe_multi(spec VARCHAR) -> dynamic relation"
+      ],
+      "authentication": "none",
+      "access": "read"
+    },
+    {
+      "schema": "main",
+      "name": "copy_to_fixed",
+      "kind": "function",
+      "signatures": [
+        "table copy_to_fixed(compression VARCHAR, encoding VARCHAR, endpoint VARCHAR, format VARCHAR, framing VARCHAR, region VARCHAR, spec VARCHAR, url_style VARCHAR, use_ssl BOOLEAN) -> dynamic relation"
+      ],
+      "authentication": "optional",
+      "access": "write"
+    },
+    {
+      "schema": "main",
+      "name": "describe_fixed",
+      "kind": "function",
+      "signatures": [
+        "table describe_fixed(spec VARCHAR, format VARCHAR) -> dynamic relation"
+      ],
+      "authentication": "none",
+      "access": "read"
+    },
+    {
+      "schema": "main",
+      "name": "write_fixed",
+      "kind": "function",
+      "signatures": [
+        "table write_fixed(data TABLE, path VARCHAR, spec VARCHAR, compression VARCHAR, encoding VARCHAR, endpoint VARCHAR, format VARCHAR, framing VARCHAR, region VARCHAR, url_style VARCHAR, use_ssl BOOLEAN) -> dynamic relation"
+      ],
+      "authentication": "optional",
+      "access": "write"
+    },
+    {
+      "schema": "main",
+      "name": "copy_fixed",
+      "kind": "function",
+      "signatures": [
+        "table copy_fixed(compression VARCHAR, encoding VARCHAR, endpoint VARCHAR, format VARCHAR, framing VARCHAR, max_decompressed_bytes BIGINT, record_length BIGINT, region VARCHAR, spec VARCHAR, url_style VARCHAR, use_ssl BOOLEAN) -> dynamic relation"
+      ],
+      "authentication": "optional",
+      "access": "read_write"
+    },
+    {
+      "schema": "main",
+      "name": "unpack_multi",
+      "kind": "function",
+      "signatures": [
+        "scalar unpack_multi(rec ANY, spec VARCHAR) -> ANY"
+      ],
+      "authentication": "none",
+      "access": "read"
+    },
+    {
+      "schema": "main",
+      "name": "unpack_multi",
+      "kind": "function",
+      "signatures": [
+        "scalar unpack_multi(rec ANY, spec VARCHAR, encoding VARCHAR) -> ANY"
+      ],
+      "authentication": "none",
+      "access": "read"
+    },
+    {
+      "schema": "main",
+      "name": "pack_fixed",
+      "kind": "function",
+      "signatures": [
+        "scalar pack_fixed(data ANY, spec VARCHAR) -> BLOB"
+      ],
+      "authentication": "none",
+      "access": "read"
+    },
+    {
+      "schema": "main",
+      "name": "pack_fixed",
+      "kind": "function",
+      "signatures": [
+        "scalar pack_fixed(data ANY, spec VARCHAR, encoding VARCHAR) -> BLOB"
+      ],
+      "authentication": "none",
+      "access": "read"
+    },
+    {
+      "schema": "main",
+      "name": "unpack_fixed",
+      "kind": "function",
+      "signatures": [
+        "scalar unpack_fixed(rec ANY, spec VARCHAR) -> ANY"
+      ],
+      "authentication": "none",
+      "access": "read"
+    },
+    {
+      "schema": "main",
+      "name": "unpack_fixed",
+      "kind": "function",
+      "signatures": [
+        "scalar unpack_fixed(rec ANY, spec VARCHAR, encoding VARCHAR) -> ANY"
+      ],
+      "authentication": "none",
+      "access": "read"
+    },
+    {
+      "schema": "main",
+      "name": "spec_reference",
+      "kind": "table",
+      "signatures": [
+        "VIEW spec_reference (None columns)"
+      ],
+      "authentication": "none",
+      "access": "read"
+    }
+  ]
+}
