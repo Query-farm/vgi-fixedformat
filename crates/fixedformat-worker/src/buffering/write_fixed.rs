@@ -72,7 +72,8 @@ impl TableBufferingFunction for WriteFixed {
         // since write_fixed matches columns to layout fields BY NAME.
         tags.push((
             "vgi.example_queries".into(),
-            r#"[
+            crate::examples::with_examples(
+                r#"[
   {
     "description": "Write two accounts to a newline-framed fixed-width file (10-char name, 5-digit quantity) and report how much was written.",
     "sql": "SELECT rows_written, bytes_written FROM fixed.main.write_fixed((FROM (VALUES ('ALICE', 5), ('BOB', 999)) AS v(name, qty)), 'data/_example_write.dat', 'name:A10 qty:9(5)')"
@@ -81,8 +82,9 @@ impl TableBufferingFunction for WriteFixed {
     "description": "Write back-to-back fixed-length records (no newline) by forcing the framing named argument, returning just the record count.",
     "sql": "SELECT rows_written FROM fixed.main.write_fixed((FROM (VALUES ('ALICE', 5), ('BOB', 999)) AS v(name, qty)), 'data/_example_write.dat', 'name:A10 qty:9(5)', framing => 'fixed')"
   }
-]"#
-            .into(),
+]"#,
+                &[&crate::examples::ASCII_TO_EBCDIC_COMP3],
+            ),
         ));
         FunctionMetadata {
             description: "Write a relation to a fixed-width file (inverse of read_fixed)".into(),

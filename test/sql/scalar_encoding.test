@@ -50,3 +50,15 @@ SELECT (pack_fixed(
         = '\xc1\xc3\xd4\xc5\x40\x12\x34\x5c'::BLOB)::INT;
 ----
 1
+
+# The pack_fixed 3-arg catalog examples (scalar/pack.rs) must run: named fields
+# matching the struct keys, and a genuinely EBCDIC input record ('Jo' = D1 96).
+query T
+SELECT hex(fixed.main.pack_fixed({'name': 'Jo', 'id': 7}, 'name:A2 id:N', 'ebcdic'));
+----
+D19600000007
+
+query T
+SELECT fixed.main.pack_fixed(fixed.main.unpack_fixed(rec, 'name:A2 id:N', 'ebcdic'), 'name:A2 id:N', 'ebcdic') = rec AS round_trips FROM (SELECT '\xD1\x96\x00\x00\x00\x07'::BLOB AS rec);
+----
+true

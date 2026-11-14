@@ -541,6 +541,24 @@ SELECT * FROM write_fixed(
   'out.dat', 'a:A8 b:9(5)');
 ```
 
+**Split the detail records out of a header/detail/trailer file** into a flat,
+single-layout file (`read_multi` → `union_extract` → `write_fixed`):
+```sql
+SELECT rows_written, bytes_written FROM write_fixed(
+  (SELECT d.sku, d.qty
+   FROM (SELECT union_extract(record, 'D') AS d
+         FROM read_multi('data/multi.dat', '{
+           "discriminator": {"offset":0,"width":1},
+           "records": {
+             "H": [{"type":"filler","width":1},{"name":"co","type":"str","width":20}],
+             "D": [{"type":"filler","width":1},{"name":"sku","type":"str","width":10},
+                   {"name":"qty","type":"int","digits":5}],
+             "T": [{"type":"filler","width":1},{"name":"cnt","type":"int","digits":6}]}}')
+         WHERE union_tag(record) = 'D')),
+  'details.dat', 'sku:A10 qty:9(5)');
+-- rows_written 2, bytes_written 32
+```
+
 ---
 
 ## Gotchas

@@ -21,6 +21,7 @@ mod buffering;
 pub mod cloud;
 mod copy_from;
 mod copy_to;
+mod examples;
 mod meta;
 mod options;
 // Public for the benchmark harness (`bench_scan_local`) and the wasm crate's
@@ -113,9 +114,10 @@ fn catalog_metadata(name: &str) -> CatalogModel {
                  record type) — without leaving SQL."
                     .to_string(),
             ),
-            // Fixed agent-suitability suite run by `vgi-lint simulate` (2 single-call
-            // smoke tests + 2 multi-concept tasks: a multi-file glob aggregate and the
-            // headline EBCDIC/COMP-3 mainframe decode). Each prompt is shown to the
+            // Fixed agent-suitability suite run by `vgi-lint simulate` (single-call
+            // smoke tests per object plus multi-concept tasks: a multi-file glob
+            // aggregate, the headline EBCDIC/COMP-3 mainframe decode, and a composed
+            // read_fixed → pack_fixed re-encode). Each prompt is shown to the
             // simulated analyst; the private reference_sql graders live in
             // vgi-agent-tests.yaml (repo root), re-run live to grade by deterministic
             // result comparison. Prompts name
@@ -237,6 +239,17 @@ fn catalog_metadata(name: &str) -> CatalogModel {
                          \"type\":\"int\",\"digits\":6}]}}.",
                     ),
                     (
+                        "accounts_to_ebcdic_comp3_hex",
+                        "The newline-delimited file data/accounts.dat holds account records: a \
+                         10-character space-padded name followed by a 5-digit zero-padded \
+                         quantity. The mainframe wants each account re-encoded as an EBCDIC \
+                         record: the name as PIC X(10) followed by the quantity as a signed \
+                         packed-decimal PIC S9(5) COMP-3. For every account in the file, return \
+                         the account name (trailing spaces trimmed) in a VARCHAR column named name \
+                         and the encoded record bytes as an uppercase hex VARCHAR in a column \
+                         named record_hex, one row per account, ordered by name.",
+                    ),
+                    (
                         "spec_reference_framing",
                         "Using the fixed-format worker's built-in reference table, list how many \
                          record-framing modes it supports. Return the count as a single column \
@@ -345,7 +358,8 @@ fn catalog_metadata(name: &str) -> CatalogModel {
                 // self-contained and catalog-qualified.
                 (
                     "vgi.example_queries".to_string(),
-                    r#"[
+                    crate::examples::with_examples(
+                        r#"[
   {
     "description": "Decode a fixed-width record into a typed struct with a template spec.",
     "sql": "SELECT fixed.main.unpack_fixed('JohnDoe  00042', 'A8 N')"
@@ -366,8 +380,9 @@ fn catalog_metadata(name: &str) -> CatalogModel {
     "description": "Scan the file just written back into typed rows.",
     "sql": "SELECT * FROM fixed.main.read_fixed('/tmp/fixed_example.dat', 'name:A10 qty:9(5)')"
   }
-]"#
-                    .to_string(),
+]"#,
+                        crate::examples::COMPOSED,
+                    ),
                 ),
                 // VGI509 guaranteed-runnable examples: every statement is
                 // self-contained, catalog-qualified, and re-runnable, so an

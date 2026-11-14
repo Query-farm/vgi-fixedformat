@@ -47,11 +47,11 @@ fn example_queries_json_with_encoding() -> String {
     r#"[
   {
     "description": "Pack a struct into an EBCDIC (CP037) record blob; the encoding also governs zoned/COMP-3 sign nibbles.",
-    "sql": "SELECT fixed.main.pack_fixed({'name': 'Jo', 'id': 7}, 'A2 N', 'ebcdic')"
+    "sql": "SELECT fixed.main.pack_fixed({'name': 'Jo', 'id': 7}, 'name:A2 id:N', 'ebcdic')"
   },
   {
-    "description": "EBCDIC round-trip: pack with the same encoding that unpack used.",
-    "sql": "SELECT fixed.main.pack_fixed(fixed.main.unpack_fixed(rec, 'A2 N', 'ebcdic'), 'A2 N', 'ebcdic') FROM (SELECT 'Jo\\x00\\x00\\x00\\x07'::BLOB AS rec)"
+    "description": "EBCDIC round-trip: unpack an EBCDIC record ('Jo' then a 4-byte big-endian 7) and pack it back with the same encoding, confirming the bytes are reproduced.",
+    "sql": "SELECT fixed.main.pack_fixed(fixed.main.unpack_fixed(rec, 'name:A2 id:N', 'ebcdic'), 'name:A2 id:N', 'ebcdic') = rec AS round_trips FROM (SELECT '\\xD1\\x96\\x00\\x00\\x00\\x07'::BLOB AS rec)"
   }
 ]"#
     .to_string()

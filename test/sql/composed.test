@@ -1,0 +1,52 @@
+# name: test/sql/composed.test
+# description: The composed catalog examples (crates/fixedformat-worker/src/examples.rs)
+#              and the accounts_to_ebcdic_comp3_hex agent-task grader — several
+#              worker objects in one query — run end to end, with each written
+#              file read back to prove the bytes are what the description says.
+#              Calls are fully qualified (no search_path).
+# group: [sql]
+
+require-env VGI_TEST_WORKER
+
+statement ok
+ATTACH 'fixed' AS fixed (TYPE vgi, LOCATION '${VGI_TEST_WORKER}');
+
+# read_fixed -> write_fixed: ASCII newline feed to fixed-length EBCDIC records
+# with a COMP-3 quantity (3 records x 13 bytes, no separators).
+query II
+SELECT rows_written, bytes_written FROM fixed.main.write_fixed((FROM fixed.main.read_fixed('data/accounts.dat', 'name:A10 qty:9(5)')), 'data/_example_ebcdic.dat', '01 ACCT. 05 NAME PIC X(10). 05 QTY PIC S9(5) COMP-3.', encoding => 'ebcdic', framing => 'fixed');
+----
+3	39
+
+query TI
+SELECT NAME, QTY FROM fixed.main.read_fixed('data/_example_ebcdic.dat', '01 ACCT. 05 NAME PIC X(10). 05 QTY PIC S9(5) COMP-3.', encoding => 'ebcdic', framing => 'fixed') ORDER BY NAME;
+----
+BOB	7
+JANE	100
+JOHN	42
+
+# read_multi -> union_extract -> write_fixed: split the detail records out.
+query II
+SELECT rows_written, bytes_written FROM fixed.main.write_fixed((SELECT d.sku, d.qty FROM (SELECT union_extract(record, 'D') AS d FROM fixed.main.read_multi('data/multi.dat', '{"discriminator":{"offset":0,"width":1},"records":{"H":[{"type":"filler","width":1},{"name":"co","type":"str","width":20}],"D":[{"type":"filler","width":1},{"name":"sku","type":"str","width":10},{"name":"qty","type":"int","digits":5}],"T":[{"type":"filler","width":1},{"name":"cnt","type":"int","digits":6}]}}') WHERE union_tag(record) = 'D')), 'data/_example_details.dat', 'sku:A10 qty:9(5)');
+----
+2	32
+
+query TI
+SELECT sku, qty FROM fixed.main.read_fixed('data/_example_details.dat', 'sku:A10 qty:9(5)') ORDER BY sku;
+----
+GADGET	7
+WIDGET	42
+
+# read_multi reconciled against its own trailer record.
+query TIIIT
+WITH r AS (SELECT record FROM fixed.main.read_multi('data/multi.dat', '{"discriminator":{"offset":0,"width":1},"records":{"H":[{"type":"filler","width":1},{"name":"co","type":"str","width":20}],"D":[{"type":"filler","width":1},{"name":"sku","type":"str","width":10},{"name":"qty","type":"int","digits":5}],"T":[{"type":"filler","width":1},{"name":"cnt","type":"int","digits":6}]}}')) SELECT max(union_extract(record, 'H').co) AS company, count(*) FILTER (WHERE union_tag(record) = 'D') AS detail_records, sum(union_extract(record, 'D').qty) AS total_qty, max(union_extract(record, 'T').cnt) AS trailer_count, count(*) FILTER (WHERE union_tag(record) = 'D') = max(union_extract(record, 'T').cnt) AS balanced FROM r;
+----
+ACME CORP	2	49	2	true
+
+# read_fixed -> pack_fixed (agent-task grader): per-row EBCDIC COMP-3 records.
+query TT
+SELECT name, hex(fixed.main.pack_fixed({'NAME': name, 'QTY': qty}, '01 ACCT. 05 NAME PIC X(10). 05 QTY PIC S9(5) COMP-3.', 'ebcdic')) AS record_hex FROM fixed.main.read_fixed('data/accounts.dat', 'name:A10 qty:9(5)') ORDER BY name;
+----
+BOB	C2D6C24040404040404000007C
+JANE	D1C1D5C540404040404000100C
+JOHN	D1D6C8D540404040404000042C
