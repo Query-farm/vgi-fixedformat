@@ -3,7 +3,7 @@ name = "vgi-fixedformat-notebooks"
 version = "0.2.0"
 description = "SQL checks for fixed-width value semantics and mixed-record exports"
 requires-python = ">=3.11"
-dependencies = ["vgi-example-notebooks @ git+https://github.com/Query-farm/vgi-example-notebooks.git@v0.3.4"]
+dependencies = ["vgi-example-notebooks @ git+https://github.com/Query-farm/vgi-example-notebooks.git@v0.3.6"]
 
 [project.optional-dependencies]
 runner = ["vgi-example-notebooks[runner]"]
