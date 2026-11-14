@@ -2233,8 +2233,8 @@ wheels = [
 
 [[package]]
 name = "vgi-example-notebooks"
-version = "0.3.6"
-source = { git = "https://github.com/Query-farm/vgi-example-notebooks.git?rev=v0.3.6#31eb1be7867f957c4c4a8fb5870004f39bcdf4b2" }
+version = "0.3.8"
+source = { git = "https://github.com/Query-farm/vgi-example-notebooks.git?rev=v0.3.8#025173bdf7bdd4c7ba3e199904e55acf1a4776ac" }
 dependencies = [
     { name = "haybarn" },
     { name = "ipython" },
@@ -2270,7 +2270,7 @@ runner = [
 
 [package.metadata]
 requires-dist = [
-    { name = "vgi-example-notebooks", git = "https://github.com/Query-farm/vgi-example-notebooks.git?rev=v0.3.6" },
+    { name = "vgi-example-notebooks", git = "https://github.com/Query-farm/vgi-example-notebooks.git?rev=v0.3.8" },
     { name = "vgi-example-notebooks", extras = ["runner"], marker = "extra == 'runner'" },
 ]
 provides-extras = ["runner"]

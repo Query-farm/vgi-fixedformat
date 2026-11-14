@@ -1,0 +1,26 @@
+{
+  "repository": "Query-farm/vgi-fixedformat",
+  "title": "Fixed-Width Records",
+  "subtitle": "Parse, write, and inspect fixed-width, struct-template, and COBOL copybook records as typed columns.",
+  "evidence_sha256": "2d0b44edd17f79dbe1a7eccfb6a8d64c311f16d2f0e1714ef47704e1e41a4969",
+  "provenance": "Actual catalog tags from the released runtime used by the notebook",
+  "worker_release": "v0.12.0",
+  "runtime_export": {
+    "attach": "ATTACH 'fixed' (TYPE vgi,\n LOCATION 'github-auto://Query-farm/vgi-fixedformat@v0.12.0');",
+    "query": "SELECT database_name, comment, map_extract_value(tags,'vgi.title') AS title, map_extract_value(tags,'vgi.subtitle') AS subtitle FROM duckdb_databases() WHERE map_extract_value(tags,'vgi.title') IS NOT NULL",
+    "columns": [
+      "database_name",
+      "comment",
+      "title",
+      "subtitle"
+    ],
+    "rows": [
+      [
+        "fixed",
+        "Fixed-width / Perl-unpack / Python-struct / COBOL-copybook record parsing and formatting for SQL.",
+        "Fixed-Width Records",
+        "Parse, write, and inspect fixed-width, struct-template, and COBOL copybook records as typed columns."
+      ]
+    ]
+  }
+}

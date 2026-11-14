@@ -91,8 +91,8 @@ compression and arbitrary copybook behavior are not inferred from these results.
 
 ## Shared presentation and coverage
 
-The [shared standard and runner](https://github.com/Query-farm/vgi-example-notebooks/blob/v0.3.6/docs/standard.md)
-are pinned at **v0.3.6**. Presentation and execution helpers are not copied here.
+The [shared standard and runner](https://github.com/Query-farm/vgi-example-notebooks/blob/v0.3.8/docs/standard.md)
+are pinned at **v0.3.8**. Presentation and execution helpers are not copied here.
 Default figures retain native SVG and content-addressed `charts/` assets for GitHub;
 experiment copies use native SVG. Preserve older chart assets when updating examples
 so earlier saved notebook revisions continue to render.
