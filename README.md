@@ -606,3 +606,8 @@ echo "INSTALL vgi FROM community;" | uvx --prerelease allow --from 'haybarn-cli>
 
 The codebase splits into a pure-logic crate and a thin adapter — see
 [`CLAUDE.md`](CLAUDE.md) for architecture and conventions.
+
+## Executable notebooks
+
+See [the SQL-first Python notebook](notebooks/README.md) for field inspection,
+byte-preserving round trips and independent decimal-scale reconciliation.
