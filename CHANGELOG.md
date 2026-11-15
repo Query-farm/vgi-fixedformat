@@ -4,6 +4,12 @@ All notable changes to `vgi-fixedformat` are documented here. The format is
 based on [Keep a Changelog](https://keepachangelog.com/), and the project follows
 [Semantic Versioning](https://semver.org/).
 
+## [0.12.2] — docs link to upstream sources
+
+### Changed
+- Docs link to upstream sources (vgi-lint VGI183): the catalog `vgi.doc_md` now
+  ends with a "Sources and references" section linking Perl pack, Python struct and COBOL copybook references.
+
 ## [0.12.1] — examples show real output
 
 ### Fixed

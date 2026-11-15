@@ -111,7 +111,12 @@ fn catalog_metadata(name: &str) -> CatalogModel {
                  `(record, spec)`.\n\nDecoding a record into a `STRUCT` and re-encoding that \
                  `STRUCT` back to bytes are exact inverses, and whole files can be scanned, written, or \
                  introspected — including heterogeneous multi-record-type files (a UNION per \
-                 record type) — without leaving SQL."
+                 record type) — without leaving SQL.\n\n\
+                 ## Sources and references\n\n\
+                 - [Perl pack / unpack templates](https://perldoc.perl.org/functions/pack) — the template letters the `template` spec format follows\n\
+                 - [Python struct format strings](https://docs.python.org/3/library/struct.html) — byte-order and size prefixes\n\
+                 - [COBOL](https://en.wikipedia.org/wiki/COBOL) — copybook PIC, COMP-3, OCCURS and REDEFINES clauses\n\
+                 - [GnuCOBOL](https://gnucobol.sourceforge.io/) — a free COBOL compiler and manual for checking copybook layouts"
                     .to_string(),
             ),
             // Fixed agent-suitability suite run by `vgi-lint simulate` (single-call
