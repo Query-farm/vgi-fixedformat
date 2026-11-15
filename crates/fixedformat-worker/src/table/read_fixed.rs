@@ -99,12 +99,12 @@ impl TableFunction for ReadFixed {
             "vgi.example_queries".into(),
             r#"[
   {
-    "description": "Profile a newline-delimited fixed-width feed of 7-digit ids: count the rows and report the id range.",
-    "sql": "SELECT count(*) AS records, min(id) AS min_id, max(id) AS max_id FROM fixed.main.read_fixed('data/large.dat', 'id:9(7)')"
+    "description": "Profile a newline-delimited fixed-width feed of 7-digit ids (a sample file pinned to a release tag): count the rows and report the id range.",
+    "sql": "SELECT count(*) AS records, min(id) AS min_id, max(id) AS max_id FROM fixed.main.read_fixed('https://raw.githubusercontent.com/Query-farm/vgi-fixedformat/v0.12.0/data/large.dat', 'id:9(7)')"
   },
   {
-    "description": "Glob several account files (10-char name, 5-digit qty) and total the quantity across every record.",
-    "sql": "SELECT sum(qty) AS total_qty FROM fixed.main.read_fixed('data/acct*.dat', 'name:A10 qty:9(5)')"
+    "description": "Read two account files at once (a list of paths or URLs; a local path may also be a glob such as 'data/acct*.dat') with a 10-char name and 5-digit qty, and total the quantity across every record.",
+    "sql": "SELECT sum(qty) AS total_qty FROM fixed.main.read_fixed(['https://raw.githubusercontent.com/Query-farm/vgi-fixedformat/v0.12.0/data/acct1.dat', 'https://raw.githubusercontent.com/Query-farm/vgi-fixedformat/v0.12.0/data/acct2.dat'], 'name:A10 qty:9(5)')"
   }
 ]"#
             .into(),

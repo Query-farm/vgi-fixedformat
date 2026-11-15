@@ -4,6 +4,23 @@ All notable changes to `vgi-fixedformat` are documented here. The format is
 based on [Keep a Changelog](https://keepachangelog.com/), and the project follows
 [Semantic Versioning](https://semver.org/).
 
+## [0.12.1] — examples show real output
+
+### Fixed
+- Example queries no longer read files that exist only in this repository
+  (vgi-lint 2.7.0 VGI516 / VGI913). `read_fixed`, `read_multi`, `write_multi` and
+  the composed examples now read the committed sample files over HTTPS, pinned to
+  the `v0.12.0` tag on raw.githubusercontent.com (`data/large.dat`,
+  `data/acct1.dat` + `data/acct2.dat`, `data/accounts.dat`, `data/multi.dat`), so
+  they return rows for any user. The account-total example passes a list of URLs
+  instead of a local glob that matched nothing outside the repo.
+- Writer examples write to `/tmp/fixed_example_*.dat` instead of `data/`, which
+  does not exist outside the repo. The `write_then_read_fixed` executable example
+  writes its file with `COPY ... TO (FORMAT 'fixed.fixed_out')` before reading it
+  back, and the schema-level "scan" example reads the pinned sample instead of a
+  file written by a previous example.
+- README examples use the same pinned sample URLs.
+
 ## [0.12.0] — VGI protocol 3.3
 
 ### Changed

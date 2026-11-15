@@ -11,7 +11,7 @@ DuckDB launches and talks to over Apache Arrow. You `ATTACH` it and call its
 functions like any other.
 
 ```sql
-ATTACH 'fixed' (TYPE vgi, LOCATION 'github-auto://Query-farm/vgi-fixedformat@v0.12.0');
+ATTACH 'fixed' (TYPE vgi, LOCATION 'github-auto://Query-farm/vgi-fixedformat@v0.12.1');
 SET search_path = 'fixed.main';
 
 SELECT unpack_fixed('JOHN      00042', 'name:A10 qty:9(5)');
@@ -28,7 +28,7 @@ Every [GitHub release](https://github.com/Query-farm/vgi-fixedformat/releases) s
 INSTALL vgi FROM community;
 LOAD vgi;
 
-ATTACH 'fixed' AS fixed (TYPE vgi, LOCATION 'github-auto://Query-farm/vgi-fixedformat@v0.12.0');
+ATTACH 'fixed' AS fixed (TYPE vgi, LOCATION 'github-auto://Query-farm/vgi-fixedformat@v0.12.1');
 
 -- Decode a fixed-width record into a typed struct with a template spec.
 SELECT fixed.main.unpack_fixed('JohnDoe  00042', 'A8 N');
@@ -38,14 +38,14 @@ SELECT fixed.main.unpack_fixed('JohnDoe  00042', 'A8 N');
 SELECT * FROM fixed.main.describe_fixed('name:A10 qty:9(5)');
 ```
 
-Prebuilt binaries cover macOS (Apple silicon), Linux (x86-64 and arm64) and Windows (x86-64). `github-auto://` needs an explicit release tag; change `@v0.12.0` to move to a newer release.
+Prebuilt binaries cover macOS (Apple silicon), Linux (x86-64 and arm64) and Windows (x86-64). `github-auto://` needs an explicit release tag; change `@v0.12.1` to move to a newer release.
 
 ### Other ways to run it
 
 - **Docker** (the image bundles the worker; needs a container runtime):
 
   ```sql
-  ATTACH 'fixed' AS fixed (TYPE vgi, LOCATION 'docker://ghcr.io/query-farm/vgi-fixedformat:0.12.0');
+  ATTACH 'fixed' AS fixed (TYPE vgi, LOCATION 'docker://ghcr.io/query-farm/vgi-fixedformat:0.12.1');
   ```
 
 - **Manual download.** Download the archive for your platform from the [releases page](https://github.com/Query-farm/vgi-fixedformat/releases), verify it against its `.sha256` file (a cosign `.cosign.bundle` is published alongside), unpack it, and set `LOCATION` to the path of the extracted worker executable.
@@ -137,7 +137,7 @@ SELECT pack_fixed({'name': 'JOHN', 'qty': 42}, 'name:A10 qty:9(5)');
 ### `read_fixed` — read a file
 
 ```sql
-SELECT * FROM read_fixed('data/accounts.dat', 'name:A10 qty:9(5)');
+SELECT * FROM read_fixed('https://raw.githubusercontent.com/Query-farm/vgi-fixedformat/v0.12.0/data/accounts.dat', 'name:A10 qty:9(5)');
 
 -- COBOL copybook + EBCDIC + fixed-length records:
 SELECT * FROM read_fixed('data/master.dat',
@@ -153,7 +153,7 @@ SELECT * FROM read_fixed('data/master.dat',
 framing — locally or from S3 — so no separate decompress step is needed:
 
 ```sql
-SELECT * FROM read_fixed('data/accounts.dat.gz', 'name:A10 qty:9(5)');         -- auto
+SELECT * FROM read_fixed('https://raw.githubusercontent.com/Query-farm/vgi-fixedformat/v0.12.0/data/accounts.dat.gz', 'name:A10 qty:9(5)');         -- auto
 SELECT * FROM read_fixed('s3://bucket/big.dat.zst', 'name:A10 qty:9(5)');      -- auto, from S3
 ```
 
@@ -185,7 +185,7 @@ SELECT
   union_tag(record)               AS kind,           -- 'H' / 'D' / 'T'
   union_extract(record, 'D').sku  AS sku,            -- the detail STRUCT's fields
   union_extract(record, 'D').qty  AS qty
-FROM read_multi('data/multi.dat', '{
+FROM read_multi('https://raw.githubusercontent.com/Query-farm/vgi-fixedformat/v0.12.0/data/multi.dat', '{
   "discriminator": {"offset": 0, "width": 1},
   "records": {
     "H": "x co:A20",
@@ -239,7 +239,7 @@ JSON spec as `read_multi`:
 
 ```sql
 SELECT * FROM write_multi(
-  (FROM read_multi('data/multi.dat', '{ "discriminator": {"offset":0,"width":1},
+  (FROM read_multi('https://raw.githubusercontent.com/Query-farm/vgi-fixedformat/v0.12.0/data/multi.dat', '{ "discriminator": {"offset":0,"width":1},
      "records": { "H": [...], "D": [...], "T": [...] } }')),
   '/tmp/out.dat',
   '{ "discriminator": {"offset":0,"width":1},
@@ -547,7 +547,7 @@ single-layout file (`read_multi` → `union_extract` → `write_fixed`):
 SELECT rows_written, bytes_written FROM write_fixed(
   (SELECT d.sku, d.qty
    FROM (SELECT union_extract(record, 'D') AS d
-         FROM read_multi('data/multi.dat', '{
+         FROM read_multi('https://raw.githubusercontent.com/Query-farm/vgi-fixedformat/v0.12.0/data/multi.dat', '{
            "discriminator": {"offset":0,"width":1},
            "records": {
              "H": [{"type":"filler","width":1},{"name":"co","type":"str","width":20}],

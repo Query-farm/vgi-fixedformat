@@ -157,11 +157,11 @@ impl TableFunction for ReadMulti {
                 r#"[
   {
     "description": "Read a header/detail/trailer flat file into a UNION column and project the detail rows' sku and qty.",
-    "sql": "SELECT union_extract(record, 'D').sku AS sku, union_extract(record, 'D').qty AS qty FROM fixed.main.read_multi('data/multi.dat', '{\"discriminator\":{\"offset\":0,\"width\":1},\"records\":{\"H\":[{\"type\":\"filler\",\"width\":1},{\"name\":\"co\",\"type\":\"str\",\"width\":20}],\"D\":[{\"type\":\"filler\",\"width\":1},{\"name\":\"sku\",\"type\":\"str\",\"width\":10},{\"name\":\"qty\",\"type\":\"int\",\"digits\":5}],\"T\":[{\"type\":\"filler\",\"width\":1},{\"name\":\"cnt\",\"type\":\"int\",\"digits\":6}]}}') WHERE union_tag(record) = 'D' ORDER BY sku"
+    "sql": "SELECT union_extract(record, 'D').sku AS sku, union_extract(record, 'D').qty AS qty FROM fixed.main.read_multi('https://raw.githubusercontent.com/Query-farm/vgi-fixedformat/v0.12.0/data/multi.dat', '{\"discriminator\":{\"offset\":0,\"width\":1},\"records\":{\"H\":[{\"type\":\"filler\",\"width\":1},{\"name\":\"co\",\"type\":\"str\",\"width\":20}],\"D\":[{\"type\":\"filler\",\"width\":1},{\"name\":\"sku\",\"type\":\"str\",\"width\":10},{\"name\":\"qty\",\"type\":\"int\",\"digits\":5}],\"T\":[{\"type\":\"filler\",\"width\":1},{\"name\":\"cnt\",\"type\":\"int\",\"digits\":6}]}}') WHERE union_tag(record) = 'D' ORDER BY sku"
   },
   {
     "description": "Count records of each type in a heterogeneous multi-record file.",
-    "sql": "SELECT union_tag(record) AS record_type, count(*) AS n FROM fixed.main.read_multi('data/multi.dat', '{\"discriminator\":{\"offset\":0,\"width\":1},\"records\":{\"H\":[{\"type\":\"filler\",\"width\":1},{\"name\":\"co\",\"type\":\"str\",\"width\":20}],\"D\":[{\"type\":\"filler\",\"width\":1},{\"name\":\"sku\",\"type\":\"str\",\"width\":10},{\"name\":\"qty\",\"type\":\"int\",\"digits\":5}],\"T\":[{\"type\":\"filler\",\"width\":1},{\"name\":\"cnt\",\"type\":\"int\",\"digits\":6}]}}') GROUP BY record_type ORDER BY record_type"
+    "sql": "SELECT union_tag(record) AS record_type, count(*) AS n FROM fixed.main.read_multi('https://raw.githubusercontent.com/Query-farm/vgi-fixedformat/v0.12.0/data/multi.dat', '{\"discriminator\":{\"offset\":0,\"width\":1},\"records\":{\"H\":[{\"type\":\"filler\",\"width\":1},{\"name\":\"co\",\"type\":\"str\",\"width\":20}],\"D\":[{\"type\":\"filler\",\"width\":1},{\"name\":\"sku\",\"type\":\"str\",\"width\":10},{\"name\":\"qty\",\"type\":\"int\",\"digits\":5}],\"T\":[{\"type\":\"filler\",\"width\":1},{\"name\":\"cnt\",\"type\":\"int\",\"digits\":6}]}}') GROUP BY record_type ORDER BY record_type"
   }
 ]"#,
                 &[

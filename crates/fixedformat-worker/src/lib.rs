@@ -377,8 +377,8 @@ fn catalog_metadata(name: &str) -> CatalogModel {
     "sql": "SELECT rows_written, bytes_written FROM fixed.main.write_fixed((FROM (VALUES ('ALICE', 5)) AS v(name, qty)), '/tmp/fixed_example.dat', 'name:A10 qty:9(5)')"
   },
   {
-    "description": "Scan the file just written back into typed rows.",
-    "sql": "SELECT * FROM fixed.main.read_fixed('/tmp/fixed_example.dat', 'name:A10 qty:9(5)')"
+    "description": "Scan a sample fixed-width accounts file (pinned to a release tag) into typed rows.",
+    "sql": "SELECT * FROM fixed.main.read_fixed('https://raw.githubusercontent.com/Query-farm/vgi-fixedformat/v0.12.0/data/accounts.dat', 'name:A10 qty:9(5)')"
   }
 ]"#,
                         crate::examples::COMPOSED,
@@ -411,11 +411,11 @@ fn catalog_metadata(name: &str) -> CatalogModel {
   },
   {
     "name": "write_then_read_fixed",
-    "description": "Write a relation out to a fixed-width file and scan it straight back into typed rows.",
+    "description": "Write a relation out to a fixed-width file with COPY ... TO and scan it straight back into typed rows with read_fixed.",
     "sql": [
       {
-        "description": "Write two rows to a fixed-width file, reporting rows and bytes written.",
-        "sql": "SELECT rows_written FROM fixed.main.write_fixed((FROM (VALUES ('ALICE', 5), ('BOB', 7)) AS v(name, qty)), '/tmp/fixed_executable_example.dat', 'name:A10 qty:9(5)')"
+        "description": "Write two rows to a fixed-width file with COPY ... TO in the fixed_out format.",
+        "sql": "COPY (FROM (VALUES ('ALICE', 5), ('BOB', 7)) AS v(name, qty)) TO '/tmp/fixed_executable_example.dat' (FORMAT 'fixed.fixed_out', spec 'name:A10 qty:9(5)')"
       },
       {
         "description": "Scan the file back, decoding each record per the same layout spec.",

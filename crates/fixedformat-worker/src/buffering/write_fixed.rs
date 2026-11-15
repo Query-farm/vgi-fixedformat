@@ -76,11 +76,11 @@ impl TableBufferingFunction for WriteFixed {
                 r#"[
   {
     "description": "Write two accounts to a newline-framed fixed-width file (10-char name, 5-digit quantity) and report how much was written.",
-    "sql": "SELECT rows_written, bytes_written FROM fixed.main.write_fixed((FROM (VALUES ('ALICE', 5), ('BOB', 999)) AS v(name, qty)), 'data/_example_write.dat', 'name:A10 qty:9(5)')"
+    "sql": "SELECT rows_written, bytes_written FROM fixed.main.write_fixed((FROM (VALUES ('ALICE', 5), ('BOB', 999)) AS v(name, qty)), '/tmp/fixed_example_write.dat', 'name:A10 qty:9(5)')"
   },
   {
     "description": "Write back-to-back fixed-length records (no newline) by forcing the framing named argument, returning just the record count.",
-    "sql": "SELECT rows_written FROM fixed.main.write_fixed((FROM (VALUES ('ALICE', 5), ('BOB', 999)) AS v(name, qty)), 'data/_example_write.dat', 'name:A10 qty:9(5)', framing => 'fixed')"
+    "sql": "SELECT rows_written FROM fixed.main.write_fixed((FROM (VALUES ('ALICE', 5), ('BOB', 999)) AS v(name, qty)), '/tmp/fixed_example_write.dat', 'name:A10 qty:9(5)', framing => 'fixed')"
   }
 ]"#,
                 &[&crate::examples::ASCII_TO_EBCDIC_COMP3],
