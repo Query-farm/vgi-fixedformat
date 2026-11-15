@@ -10,6 +10,13 @@ based on [Keep a Changelog](https://keepachangelog.com/), and the project follow
 - Docs link to upstream sources (vgi-lint VGI183): the catalog `vgi.doc_md` now
   ends with a "Sources and references" section linking Perl pack, Python struct and COBOL copybook references.
 
+### Fixed
+- `read_multi` examples vary the sample file (vgi-lint VGI1003): every example
+  passed the same `multi.dat` URL, which reads as connection configuration. One
+  example now reads the undelimited `multi_fixed.dat` with `framing => 'fixed'`
+  and one reads `multi_bad.dat` with a `"default": "D"` fallback for its unknown
+  record type (both committed fixtures, pinned to the `v0.12.0` tag).
+
 ## [0.12.1] — examples show real output
 
 ### Fixed
