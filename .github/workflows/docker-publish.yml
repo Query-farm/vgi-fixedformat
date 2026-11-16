@@ -67,82 +67,44 @@ jobs:
       version_check_cmd: "ci/check-version.sh"
       # Prove the IMAGE's entrypoints speak the VGI protocol against the signed vgi
       # extension. The worker *logic* is already exercised every run by the gating
-      # `ci` job (all test/sql/*, e2e + S3-compatible s3), so here we only verify the image:
+      # `ci` job (all test/sql/*, stdio/launch/http + S3-compatible s3), so here we
+      # only verify the image, through ci/run-integration.sh with a preset LOCATION:
       #   - stdio: run the PURE-COMPUTE test subset through `docker run … stdio`
-      #            (the on-host mode). File-reading tests are skipped because their
-      #            fixtures live in the repo, not inside the fixture-less image.
+      #            (the on-host mode). File-reading tests are left out because
+      #            their fixtures live in the repo, not inside the image.
       #   - HTTP : mount the large-file fixture and run one multi-batch test against
       #            a SINGLE warm container via the default `http` entrypoint +
       #            /health, proving HTTP continuation as well as startup.
-      # $CITEST_IMAGE is the loaded <image>:citest-amd64 ref; GH_TOKEN is provided
-      # for the release download.
+      # $CITEST_IMAGE is the loaded <image>:citest-amd64 ref.
       image_test: |
-        set -euo pipefail
-
-        echo "::group::download haybarn-unittest"
-        REL=$(gh release list --repo Query-farm-haybarn/haybarn --limit 30 --json tagName \
-          --jq '[.[].tagName | select(startswith("haybarn-v2.0"))][0]')
-        [ -n "$REL" ] && [ "$REL" != null ] || { echo "::error::no haybarn-v2.0 release found"; exit 1; }
-        gh release download "$REL" --repo Query-farm-haybarn/haybarn \
-          --pattern 'haybarn_unittest-linux-amd64.zip' --output hb.zip --clobber
-        mkdir -p hb && unzip -o -q hb.zip -d hb
-        HAYBARN_UNITTEST="$PWD/$(find hb -name 'haybarn-unittest' -type f | head -1)"
-        chmod +x "$HAYBARN_UNITTEST"
+        echo "::group::install haybarn-unittest (pinned: Makefile HAYBARN_VERSION, as ci.yml)"
+        HAYBARN_VERSION="$(sed -n 's/^HAYBARN_VERSION *?= *//p' Makefile)"
+        test -n "$HAYBARN_VERSION" || { echo "HAYBARN_VERSION not found in Makefile" >&2; exit 1; }
+        if ! command -v uv >/dev/null; then
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          export PATH="$HOME/.local/bin:$PATH"
+        fi
+        uv venv -q --allow-existing .tools
+        uv pip install -q -p .tools "haybarn-unittest==$HAYBARN_VERSION"
+        export HAYBARN_UNITTEST="$PWD/.tools/bin/haybarn-unittest"
         echo "::endgroup::"
 
         # Pure-compute tests: unpack_fixed/pack_fixed/describe — no read_fixed,
-        # write_fixed, COPY or file fixtures, so they run against a worker inside a
-        # fixture-less container. (File-IO tests are covered by the gating ci job.)
+        # write_fixed, COPY or file fixtures.
         PURE="basic codes copybook describe describe_multi edited nulls scalar_encoding types"
 
-        # Warm the vgi community extension once (the .test files ATTACH TYPE vgi).
-        echo "::group::warm vgi community extension"
-        WARM="$(mktemp -d)/test"
-        mkdir -p "$WARM"
-        cat > "$WARM/_warm.test" <<'EOF'
-        # name: test/_warm.test
-        # group: [warm]
-        statement ok
-        FORCE INSTALL vgi FROM community;
-        EOF
-        (cd "$(dirname "$WARM")" && "$HAYBARN_UNITTEST" --keep-home "test/_warm.test") \
-          >/dev/null 2>&1 || echo "::warning::vgi warm step did not fully succeed"
-        echo "::endgroup::"
-
-        run_suite() {  # $1=stage dir, $2=worker LOCATION, $3=label
-          local stage="$1" worker="$2" label="$3"
-          local report="$stage/.report.txt"
-          echo "Running $label suite (worker: $worker) ..."
-          set +e
-          ( cd "$stage" && VGI_TEST_WORKER="$worker" VGI_WORKER_CATALOG_NAME="fixed" \
-              "$HAYBARN_UNITTEST" --keep-home --test-dir "$stage" "test/sql/*" ) 2>&1 | tee "$report"
-          local status="${PIPESTATUS[0]}"
-          set -e
-          # A skip is NOT a pass: DuckDB's runner silently auto-skips tests whose
-          # error message contains "HTTP", so a broken transport could look green.
-          if grep -qiE "All tests were skipped|total skipped [1-9]" "$report"; then
-            echo "ERROR: $label tests were SKIPPED — an ATTACH/transport error was masked." >&2
-            exit 1
-          fi
-          [ "$status" -eq 0 ] || { echo "ERROR: $label suite failed (exit $status)." >&2; exit "$status"; }
-        }
-
         echo "::group::stdio entrypoint smoke (pure subset, cold container per ATTACH)"
-        S1="$(mktemp -d)"; mkdir -p "$S1/test/sql"
-        for t in $PURE; do cp "test/sql/$t.test" "$S1/test/sql/"; done
-        run_suite "$S1" "docker run -i --rm $CITEST_IMAGE stdio" "stdio"
+        for t in $PURE; do
+          TRANSPORT=stdio TEST_PATTERN="test/sql/$t.test" \
+            VGI_TEST_WORKER="docker run -i --rm $CITEST_IMAGE stdio" \
+            ci/run-integration.sh
+        done
         echo "::endgroup::"
 
         echo "::group::HTTP entrypoint smoke (multi-batch continuation, one warm container)"
         CID=$(docker run -d -p 18000:8000 -v "$PWD/data:/app/data:ro" "$CITEST_IMAGE")
         trap 'docker rm -f "$CID" >/dev/null 2>&1 || true' EXIT
         for _ in $(seq 1 30); do curl -fsS -o /dev/null http://localhost:18000/health && break; sleep 1; done
-        # The vgi extension's HTTP client is built on DuckDB's httpfs, so inject an
-        # INSTALL/LOAD httpfs after the require-env line (before the ATTACH) for the
-        # http leg — a skip here means the ATTACH errored ("HTTP" auto-skip trap).
-        S2="$(mktemp -d)"; mkdir -p "$S2/test/sql"
-        awk '/^require-env VGI_TEST_WORKER/ {print; print ""; print "statement ok";
-             print "INSTALL httpfs;"; print ""; print "statement ok"; print "LOAD httpfs;"; next}
-             {print}' test/sql/http_continuation.test > "$S2/test/sql/http_continuation.test"
-        run_suite "$S2" "http://localhost:18000" "HTTP"
+        TRANSPORT=http TEST_PATTERN="test/sql/http_continuation.test" \
+          VGI_TEST_WORKER="http://localhost:18000" ci/run-integration.sh
         echo "::endgroup::"

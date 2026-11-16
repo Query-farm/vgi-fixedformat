@@ -10,10 +10,10 @@ HAYBARN_UNITTEST := $(TOOLS)/bin/haybarn-unittest
 TRANSPORTS       ?= stdio launch http
 
 .DEFAULT_GOAL := help
-.PHONY: help build tools fmt lint test-unit test-sql test vgi-lint check clean
+.PHONY: help build tools fmt lint test-unit test-sql test lint-explain vgi-lint check clean
 
 help: ## List the targets
-	@awk 'BEGIN{FS=":.*## "} /^[a-zA-Z_-]+:.*## /{printf "  %-10s %s\n",$$1,$$2}' $(MAKEFILE_LIST)
+	@awk 'BEGIN{FS=":.*## "} /^[a-zA-Z_-]+:.*## /{printf "  %-13s %s\n",$$1,$$2}' $(MAKEFILE_LIST)
 
 build: ## Build the worker (release)
 	cargo build --locked --release --bin $(BIN)
@@ -39,10 +39,12 @@ test-sql: build tools ## SQL tests through DuckDB over stdio, launch and http (T
 
 test: test-unit test-sql ## Unit + SQL tests
 
-vgi-lint: build ## Metadata quality gate (vgi-lint at fail-on=info, as in CI)
+lint-explain: build ## Metadata quality gate (vgi-lint at fail-on=info, as in CI)
 	uvx --prerelease=allow --from 'vgi-lint-check>=2,<3' vgi-lint lint "$(WORKER)" --fail-on info
 
-check: lint test-unit test-sql vgi-lint ## Everything CI runs. Done = this passes.
+vgi-lint: lint-explain ## Alias for lint-explain
+
+check: lint test-unit test-sql lint-explain ## Everything CI runs. Done = this passes.
 
 clean: ## Remove build outputs and tool caches
 	cargo clean
