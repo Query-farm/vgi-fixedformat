@@ -585,7 +585,7 @@ SELECT rows_written, bytes_written FROM write_fixed(
 ```sh
 cargo test -p fixedformat-core   # unit tests + property-based round-trip fuzzing
 cargo clippy --all-targets
-./run_tests.sh                   # end-to-end SQLLogic suite (see below)
+make test-sql                    # end-to-end SQLLogic suite (see below)
 python3 data/generate_fixtures.py  # regenerate test fixtures
 ```
 

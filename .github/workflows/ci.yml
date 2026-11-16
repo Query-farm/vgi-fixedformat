@@ -18,6 +18,8 @@ concurrency:
   cancel-in-progress: true
 
 env:
+  # The SQL test runner (haybarn-unittest) every SQL job installs.
+  HAYBARN_VERSION: "2.0.0rc11"
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
 
@@ -50,36 +52,44 @@ jobs:
         run: cargo test --workspace --all-features
 
   e2e:
-    name: SQLLogic e2e (haybarn)
-    runs-on: ubuntu-latest
+    # SQL end-to-end: the SAME test/sql/*.test suite over each transport the vgi
+    # extension supports; ci/run-integration.sh sets VGI_TEST_WORKER per transport:
+    # stdio = DuckDB spawns the worker; launch = DuckDB starts it once on a unix
+    # socket and pools connections; http = `fixedformat-worker --http`.
+    name: SQLLogic e2e (haybarn, ${{ matrix.transport }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        transport: [stdio, launch, http]
     steps:
       - uses: actions/checkout@v5
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
-      # Share one release-profile cache with metadata-quality (both build the
-      # worker in release mode), so the dependency graph compiles once, not twice.
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: release
           save-if: ${{ github.ref == 'refs/heads/main' }}
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v6
 
-      - name: Install the haybarn unittest runner
-        # Only `haybarn-unittest` is installed as a tool; `haybarn-cli` (used to
-        # install the vgi extension) is fetched on demand by `uvx` in run_tests.sh.
+      - name: Build worker (release)
+        run: cargo build --locked --release --bin fixedformat-worker
+
+      - name: Install the SQL test runner
         run: |
-          uv tool install --prerelease allow 'haybarn-unittest>=2.0.0rc11,<2.1'
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          uv venv .tools
+          uv pip install -p .tools "haybarn-unittest==${HAYBARN_VERSION}"
 
-      - name: Install the vgi community extension
-        run: echo "FORCE INSTALL vgi FROM community;" | uvx --prerelease allow --from 'haybarn-cli>=2.0.0rc11,<2.1' haybarn-cli
-
-      - name: Run SQLLogic suite against the built worker
-        run: ./run_tests.sh
+      - name: Run test/sql over ${{ matrix.transport }}
+        run: |
+          export WORKER="$PWD/target/release/fixedformat-worker"
+          export HAYBARN_UNITTEST="$PWD/.tools/bin/haybarn-unittest"
+          TRANSPORT=${{ matrix.transport }} ci/run-integration.sh
 
   metadata-quality:
     name: metadata quality (vgi-lint)
@@ -237,7 +247,7 @@ jobs:
 
       - name: Wait for the S3-compatible server to be ready
         run: |
-          for i in $(seq 1 30); do
+          for _ in $(seq 1 30); do
             if curl -sf "http://$FIXEDFORMAT_S3_TEST_ENDPOINT/moto-api/" >/dev/null; then
               echo "S3-compatible server is up"; exit 0
             fi
@@ -259,28 +269,20 @@ jobs:
           aws --endpoint-url "http://$FIXEDFORMAT_S3_TEST_ENDPOINT" \
             s3 mb "s3://$FIXEDFORMAT_S3_TEST_BUCKET"
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v6
 
-      - name: Install the haybarn unittest runner
-        run: |
-          uv tool install --prerelease allow 'haybarn-unittest>=2.0.0rc11,<2.1'
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Build worker (release)
+        run: cargo build --locked --release --bin fixedformat-worker
 
-      - name: Install the vgi + httpfs extensions
-        # httpfs supplies DuckDB's `s3` secret type, which the test's
-        # CREATE SECRET depends on (the test also INSTALLs/LOADs it itself).
+      - name: Install the SQL test runner
         run: |
-          echo "FORCE INSTALL vgi FROM community;" | uvx --prerelease allow --from 'haybarn-cli>=2.0.0rc11,<2.1' haybarn-cli
-          echo "INSTALL httpfs;" | uvx --prerelease allow --from 'haybarn-cli>=2.0.0rc11,<2.1' haybarn-cli
+          uv venv .tools
+          uv pip install -p .tools "haybarn-unittest==${HAYBARN_VERSION}"
 
       - name: Run the s3 round-trip test against the S3-compatible server
-        # A skip is not a pass: this job exists to run the test for real, so fail
-        # if the runner skipped it (e.g. a require/require-env gate tripped).
+        # A skip is not a pass: with FIXEDFORMAT_S3_TEST_BUCKET set the script
+        # does not expect the require-env skip, so a tripped gate fails the job.
         run: |
-          set -o pipefail
-          ./run_tests.sh test/sql/s3_roundtrip.test 2>&1 | tee s3-e2e.log
-          if grep -qiE "All tests were skipped|total skipped [1-9]" s3-e2e.log; then
-            echo "ERROR: s3_roundtrip.test was skipped instead of run." >&2
-            exit 1
-          fi
+          export WORKER="$PWD/target/release/fixedformat-worker"
+          export HAYBARN_UNITTEST="$PWD/.tools/bin/haybarn-unittest"
+          TRANSPORT=stdio TEST_PATTERN=test/sql/s3_roundtrip.test ci/run-integration.sh

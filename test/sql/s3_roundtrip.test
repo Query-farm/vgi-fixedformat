@@ -10,7 +10,7 @@
 #                export FIXEDFORMAT_S3_TEST_ENDPOINT=localhost:9000
 #                export FIXEDFORMAT_S3_TEST_KEY_ID=minioadmin
 #                export FIXEDFORMAT_S3_TEST_SECRET=minioadmin
-#                ./run_tests.sh test/sql/s3_roundtrip.test
+#                TEST_PATTERN=test/sql/s3_roundtrip.test make test-sql TRANSPORTS=stdio
 # group: [sql]
 
 require-env VGI_TEST_WORKER

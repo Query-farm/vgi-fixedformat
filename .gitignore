@@ -13,3 +13,4 @@ data/_*
 
 # Browser build output (wasm/build.sh)
 /wasm/dist
+/.tools/

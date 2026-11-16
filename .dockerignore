@@ -12,7 +12,6 @@ wasm
 ci
 docs
 duckdb_unittest_tempdir
-run_tests.sh
 README.md
 CHANGELOG.md
 .vgi-review-cache.json

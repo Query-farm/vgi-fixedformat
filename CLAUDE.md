@@ -293,8 +293,8 @@ whole file before emitting".
 cargo test -p fixedformat-core   # 73 unit tests + proptest round-trip fuzzing (tests/roundtrip.rs)
 cargo clippy --all-targets       # keep clean
 cargo build --release            # build the worker
-./run_tests.sh                   # end-to-end SQLLogic suite (13 files, see below)
-./run_tests.sh test/sql/types.test   # single file (Catch2 filter; trailing * only)
+make test-sql                    # end-to-end SQLLogic suite (13 files, see below)
+TEST_PATTERN=test/sql/types.test make test-sql TRANSPORTS=stdio   # single file (Catch2 filter; trailing * only)
 ./wasm/build.sh                  # browser build (needs emsdk + nightly); see wasm/README.md
 ```
 
@@ -310,8 +310,9 @@ End-to-end tests need the haybarn tooling (one-time):
 uv tool install --prerelease allow 'haybarn-unittest>=2.0.0rc11,<2.1'
 echo "INSTALL vgi FROM community;" | uvx --prerelease allow --from 'haybarn-cli>=2.0.0rc11,<2.1' haybarn-cli
 ```
-`run_tests.sh` builds the worker and runs `haybarn-unittest --test-dir "$PWD"
-"test/sql/*"` with `VGI_TEST_WORKER` pointed at the binary.
+`make test-sql` builds the worker and runs `ci/run-integration.sh` (haybarn-unittest
+over `test/sql/*`) with `VGI_TEST_WORKER` set for the stdio, launch and http
+transports.
 
 ## WASM (browser) build
 
