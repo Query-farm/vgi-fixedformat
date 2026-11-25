@@ -4,6 +4,11 @@ All notable changes to `vgi-fixedformat` are documented here. The format is
 based on [Keep a Changelog](https://keepachangelog.com/), and the project follows
 [Semantic Versioning](https://semver.org/).
 
+## 0.13.0 (2026-11-25)
+
+- VGI protocol 3.4: `vgi` 0.53.2, `vgi-rpc` 0.33.1 (Orchard hosted mode; `blob-vendor` on the native build). Requires the 3.4 community `vgi` extension (haybarn 2.0.1).
+- SQL tests run on haybarn-unittest 2.0.1rc3. Dockerfile HEALTHCHECK probes `HEAD /health` (hosted mode answers anonymous GET with 401).
+
 ## 0.12.3 (2026-11-16)
 
 - VGI Rust SDK `vgi` 0.51.0 → 0.51.1 (`vgi-rpc` stays 0.32.4).
@@ -40,7 +45,7 @@ based on [Keep a Changelog](https://keepachangelog.com/), and the project follow
   file written by a previous example.
 - README examples use the same pinned sample URLs.
 
-## [0.12.0] — VGI protocol 3.3
+## [0.12.0] — VGI protocol 3.4
 
 ### Changed
 - Ported to VGI protocol `vgi.v3` 3.3: `vgi` 0.50.1 → 0.51.0, `vgi-rpc`

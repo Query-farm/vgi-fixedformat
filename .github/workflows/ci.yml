@@ -19,7 +19,7 @@ concurrency:
 
 env:
   # The SQL test runner (haybarn-unittest) every SQL job installs.
-  HAYBARN_VERSION: "2.0.0rc11"
+  HAYBARN_VERSION: "2.0.1rc3"
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
 

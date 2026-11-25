@@ -89,7 +89,7 @@ EXPOSE 8000 8001
 # Readiness probe for HTTP mode. Inert for a short-lived stdio container, which
 # has no HTTP server (the probe just fails harmlessly there).
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD curl -fsS "http://localhost:${PORT:-8000}/health" || exit 1
+    CMD curl -fsS -I "http://localhost:${PORT:-8000}/health" || exit 1
 
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 CMD ["http"]
