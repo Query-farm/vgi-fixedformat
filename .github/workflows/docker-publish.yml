@@ -46,6 +46,10 @@ jobs:
   ci:
     needs: [ci-status]
     if: ${{ needs.ci-status.outputs.passed != 'true' }}
+    # ci.yml's audit job requests checks: write; a called workflow can't exceed its caller.
+    permissions:
+      contents: read
+      checks: write
     uses: ./.github/workflows/ci.yml
 
   publish:

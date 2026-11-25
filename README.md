@@ -45,7 +45,7 @@ Prebuilt binaries cover macOS (Apple silicon), Linux (x86-64 and arm64) and Wind
 - **Docker** (the image bundles the worker; needs a container runtime):
 
   ```sql
-  ATTACH 'fixed' AS fixed (TYPE vgi, LOCATION 'docker://ghcr.io/query-farm/vgi-fixedformat:0.13.0');
+  ATTACH 'fixed' AS fixed (TYPE vgi, LOCATION 'docker://ghcr.io/query-farm/vgi-fixedformat:0.13.1');
   ```
 
 - **Manual download.** Download the archive for your platform from the [releases page](https://github.com/Query-farm/vgi-fixedformat/releases), verify it against its `.sha256` file (a cosign `.cosign.bundle` is published alongside), unpack it, and set `LOCATION` to the path of the extracted worker executable.

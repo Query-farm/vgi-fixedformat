@@ -123,6 +123,13 @@ jobs:
   audit:
     name: supply-chain audit (cargo-audit)
     runs-on: ubuntu-latest
+    # rustsec/audit-check posts a check-run whenever it reports a finding (e.g. the
+    # unmaintained chrono/humantime warnings), which needs `checks: write`.
+    # Without it the read-only token fails with "Resource not accessible by
+    # integration … create-a-check-run".
+    permissions:
+      contents: read
+      checks: write
     steps:
       - uses: actions/checkout@v5
 
